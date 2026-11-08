@@ -13,10 +13,10 @@ const measure = approxMeasure;
 const map = (...els) => new Map(els.map((e) => [e.id, e]));
 
 test('wrapText wraps, keeps explicit breaks, and parses bold runs', () => {
-  const lines = wrapText('**Rule 1:** keep things short\nnext', 100, 16, 400, measure);
+  const lines = wrapText('**Tip one:** keep things short\nnext', 100, 16, 400, measure);
   assert.ok(lines.length >= 3);
   assert.equal(lines[0].runs[0].bold, true);
-  assert.equal(lines[0].runs[0].t, 'Rule 1:');
+  assert.equal(lines[0].runs[0].t, 'Tip one:');
   assert.equal(lines.at(-1).runs[0].t, 'next');
   for (const line of lines) assert.ok(line.width <= 100.01);
 });

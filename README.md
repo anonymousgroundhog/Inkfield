@@ -2,7 +2,7 @@
 
 An infinite-canvas diagram editor that runs in your browser. Keep separate whiteboards in one workspace or side by side in their own windows, draw diagrams from scratch, and export any selection of items as a PNG.
 
-![Inkfield showing a diagram with a table, icons and labelled connectors](docs/screenshot.png)
+![Inkfield showing a weather station diagram with sensors, a database, icons, and labelled connectors](docs/screenshot.png)
 
 There is no account, backend or dependency to install. Your boards stay in your browser's storage.
 
@@ -38,7 +38,7 @@ Then open <http://localhost:4173>. To use another port, run `PORT=5000 npm start
 
 ### Text formatting
 
-Wrap words in double asterisks for bold, such as `**Rule 1:** Keep an audit trail`. This works in shapes, notes, table cells, and labels.
+Wrap words in double asterisks for bold, such as `**Tip:** Save a backup`. This works in shapes, notes, table cells, and labels.
 
 ### Add links with previews
 
@@ -134,7 +134,7 @@ Boards are plain JSON, so scripts and AI assistants can write them too. Import a
 To preview a board or Mermaid file without a browser, render it to SVG. Text wrapping in this output is approximate:
 
 ```bash
-node bin/render-svg.js examples/review-pipeline.json diagram.svg
+node bin/render-svg.js examples/weather-station.json diagram.svg
 node bin/render-svg.js examples/flowchart.mmd diagram.svg
 ```
 

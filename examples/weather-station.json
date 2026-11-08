@@ -1,0 +1,20 @@
+{
+  "name": "Weather station",
+  "elements": [
+    { "id": "field", "type": "rect", "x": 0, "y": 0, "w": 210, "h": 310, "text": "Field sensors", "align": "left", "valign": "top", "fontWeight": 600, "fill": "#eef3f6", "stroke": "#9aa4ae", "strokeWidth": 1.5 },
+    { "id": "temp", "type": "rect", "x": 25, "y": 45, "w": 160, "h": 66, "text": "Temperature", "fill": "#ffd6d6" },
+    { "id": "humidity", "type": "rect", "x": 25, "y": 130, "w": 160, "h": 66, "text": "Humidity", "fill": "#a5d8ff" },
+    { "id": "wind", "type": "rect", "x": 25, "y": 215, "w": 160, "h": 66, "text": "Wind speed", "fill": "#b7e4c7" },
+    { "id": "gateway", "type": "hexagon", "x": 320, "y": 105, "w": 160, "h": 100, "text": "Radio gateway", "fontWeight": 600 },
+    { "id": "api", "type": "rect", "x": 600, "y": 115, "w": 170, "h": 80, "text": "Ingest API", "fontWeight": 600, "fill": "#d0bfff" },
+    { "id": "db", "type": "cylinder", "x": 890, "y": 90, "w": 130, "h": 130, "text": "Readings", "fill": "#ffffff" },
+    { "id": "dash", "type": "icon", "icon": "laptop", "x": 1140, "y": 105, "w": 100, "h": 100, "text": "Dashboard", "fontSize": 17 },
+    { "id": "mail", "type": "icon", "icon": "mail", "x": 645, "y": 340, "w": 80, "h": 80, "text": "Email alerts", "fontSize": 17 },
+    { "id": "note", "type": "sticky", "x": 880, "y": 325, "w": 190, "h": 120, "text": "Alerts go out when wind passes **60 km/h**" },
+    { "type": "connector", "from": { "id": "field", "side": "right" }, "to": { "id": "gateway", "side": "left" }, "route": "straight", "label": "Radio" },
+    { "type": "connector", "from": { "id": "gateway", "side": "right" }, "to": { "id": "api", "side": "left" }, "route": "straight", "label": "HTTPS" },
+    { "type": "connector", "from": { "id": "api", "side": "right" }, "to": { "id": "db", "side": "left" }, "route": "straight", "label": "Store" },
+    { "type": "connector", "from": { "id": "db", "side": "right" }, "to": { "id": "dash", "side": "left" }, "route": "straight", "label": "Query" },
+    { "type": "connector", "from": { "id": "api", "side": "bottom" }, "to": { "id": "mail", "side": "top" }, "route": "straight", "dash": "dashed", "label": "Over limit" }
+  ]
+}
