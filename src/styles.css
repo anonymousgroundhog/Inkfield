@@ -169,9 +169,33 @@ legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
 #export-form > footer button:not(.primary) { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
 #export-form > footer button:not(.primary):hover { background: var(--chrome); }
 
+#mermaid-dialog { width: min(1040px, calc(100vw - 32px)); }
+#mermaid-form { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; max-height: calc(100vh - 48px); overflow-y: auto; }
+#mermaid-form h2 { margin: 0; font-size: 17px; }
+.mermaid-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 14px; }
+.mermaid-source { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.mermaid-source label { font-weight: 600; }
+#mermaid-code { flex: 1; min-height: 380px; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: none; font: 13px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; tab-size: 2; }
+#mermaid-code:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mermaid-preview { height: 410px; max-height: none; align-self: end; background-image: none; }
+.mermaid-preview img { max-height: 390px; }
+#mermaid-empty { margin: 0; color: var(--ink-2); }
+#mermaid-help { margin: 0; color: var(--ink-2); }
+#mermaid-error { margin: 0; color: var(--danger); }
+#mermaid-error:empty, #mermaid-warnings:empty { display: none; }
+#mermaid-warnings { margin: 0; padding-left: 18px; color: #8a5a00; max-height: 72px; overflow-y: auto; }
+#mermaid-form > footer { display: flex; gap: 8px; }
+#mermaid-form > footer button:not(.primary) { height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+#mermaid-form > footer button:not(.primary):hover:not(:disabled) { background: var(--chrome); }
+#mermaid-form > footer button:disabled { opacity: .5; cursor: default; }
+
 #toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); z-index: 50; padding: 8px 14px; border-radius: 8px; background: var(--ink); color: #fff; max-width: 80vw; }
 
 @media (max-width: 900px) {
+  .mermaid-body { grid-template-columns: minmax(0, 1fr); }
+  #mermaid-code { min-height: 180px; }
+  .mermaid-preview { height: 220px; }
+  .mermaid-preview img { max-height: 200px; }
   #workspace { grid-template-columns: 52px minmax(0, 1fr); }
   #inspector { position: absolute; right: 8px; top: 8px; bottom: 8px; width: 220px; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(20, 30, 30, .16); }
   #inspector.idle { display: none; }

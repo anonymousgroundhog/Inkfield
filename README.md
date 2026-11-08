@@ -26,6 +26,7 @@ Then open <http://localhost:4173>. To use another port, run `PORT=5000 npm start
 - **Diagramming tools:** shapes, text, sticky notes, tables, freehand pen, 30 built-in icons, and your own images (upload, drag in, or paste).
 - **Connectors:** elbow, straight, or curved lines that stay attached when shapes move. They can have arrowheads and labels. Drag from the dots around a selected item to connect it.
 - **Arrangement:** grouping (including nested groups), alignment guides while dragging, align and distribute commands, layering, undo and redo.
+- **Mermaid import:** paste Mermaid code and get a diagram made of normal, editable shapes.
 - **PNG export:** select items, then choose **Export PNG**. You can set the scale (1× to 4×), padding, and a white or transparent background, then download the file or copy it to the clipboard.
 
 ### Exporting part of a board
@@ -38,12 +39,45 @@ Then open <http://localhost:4173>. To use another port, run `PORT=5000 npm start
 
 Wrap words in double asterisks for bold, such as `**Rule 1:** Keep an audit trail`. This works in shapes, notes, table cells, and labels.
 
+### Create a diagram from Mermaid code
+
+Press `M`, click the Mermaid button in the left toolbar, or choose **File > Create from Mermaid**. Type or paste your code, check the live preview, and then choose **Add to this board** or **Create on new board**. You can also paste Mermaid straight onto the canvas or drop an `.mmd` file on it.
+
+```mermaid
+flowchart TD
+  A[Start] --> B{Ready?}
+  B -- Yes --> C[Ship it]
+  B -- No --> D[Fix it]
+  D --> B
+```
+
+The diagram is laid out automatically and uses Inkfield's own shapes and connectors, so you can move, restyle, and export every part of it.
+
+| Mermaid type | What converts |
+| --- | --- |
+| `flowchart` / `graph` | Directions, node shapes, link styles and labels, chained links, `&`, nested subgraphs, `style`, `classDef` |
+| `sequenceDiagram` | Participants, actors, all arrow types, notes, `autonumber`, `alt`, `loop`, `opt`, `par`, `critical`, `break` |
+| `stateDiagram-v2` | Start and end states, transitions, composite states, descriptions, choice, fork, join |
+| `classDiagram` | Classes, members, relationships, cardinality |
+| `erDiagram` | Entities, attributes, relationships (shown as text such as `1 : 0..*`) |
+
+Other Mermaid types, such as Gantt and pie charts, show a message saying they aren't supported. If a line can't be read, the preview names it and the rest of the diagram still converts.
+
+The conversion is an approximation of Mermaid's own output:
+
+- The layout differs from Mermaid's.
+- Shapes Inkfield doesn't have become the closest match. For example, trapezoids become parallelograms and double circles become circles.
+- Class relationships use simple end markers rather than exact UML symbols.
+- `linkStyle`, `click`, and sequence activation bars are ignored.
+- In a sequence diagram, messages aren't attached to participants, so select everything before moving part of it.
+
 ### Keyboard shortcuts
 
 | Keys | Action |
 | --- | --- |
 | `V` / `H` | Select / pan tool |
 | `R` / `O` / `D` | Rectangle / ellipse / diamond |
+| `M` | Create from Mermaid code |
 | `C` / `T` / `N` / `P` | Connector / text / sticky note / pen |
 | `Enter` or double-click | Edit text |
 | `Ctrl+Enter` or `Esc` | Finish editing text |
@@ -77,13 +111,14 @@ Boards are plain JSON, so scripts and AI assistants can write them too. Import a
 | `text`, `sticky` | `x`, `y`, `w`, `h`, `text`, `fontSize` |
 | `icon` | `x`, `y`, `w`, `h`, `icon` (name from [`src/icons.js`](src/icons.js)), `text` (caption) |
 | `table` | `x`, `y`, `w`, `h`, `cells` (array of rows), `titleRow`, `headerFill` |
-| `connector` | `from` and `to` (an element id, or `{ "id", "side" }`, or `{ "x", "y" }`), `route` (`elbow`, `straight`, `curve`), `startCap` and `endCap` (`none`, `arrow`, `open`, `dot`), `label` |
+| `connector` | `from` and `to` (an element id, or `{ "id", "side" }`, or `{ "x", "y" }`), `route` (`elbow`, `straight`, `curve`), `startCap` and `endCap` (`none`, `arrow`, `open`, `dot`, `cross`), `label` |
 | `image` | `x`, `y`, `w`, `h`, `src` (base64 `data:image/...` only) |
 
-To preview a file without a browser, render it to SVG. Text wrapping in this output is approximate:
+To preview a board or Mermaid file without a browser, render it to SVG. Text wrapping in this output is approximate:
 
 ```bash
 node bin/render-svg.js examples/review-pipeline.json diagram.svg
+node bin/render-svg.js examples/flowchart.mmd diagram.svg
 ```
 
 ## Where your data lives

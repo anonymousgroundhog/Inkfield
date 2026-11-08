@@ -17,6 +17,7 @@
         <button data-file="window">Open this board in new window</button>
         <hr>
         <button data-file="open">Import JSON…</button>
+        <button data-file="mermaid">Create from Mermaid…</button>
         <button data-file="save">Save board as JSON</button>
         <button data-file="backup">Back up all boards</button>
         <hr>
@@ -100,7 +101,36 @@
     </form>
   </dialog>
 
-  <input id="file-input" type="file" accept=".json,application/json" hidden>
+  <dialog id="mermaid-dialog">
+    <form method="dialog" id="mermaid-form">
+      <h2>Create from Mermaid</h2>
+      <div class="mermaid-body">
+        <div class="mermaid-source">
+          <label for="mermaid-code">Mermaid code</label>
+          <textarea id="mermaid-code" spellcheck="false" wrap="off" placeholder="flowchart TD
+  A[Start] --> B{Ready?}
+  B -- Yes --> C[Ship it]
+  B -- No --> D[Fix it]
+  D --> B"></textarea>
+        </div>
+        <div class="preview mermaid-preview">
+          <img id="mermaid-preview" alt="Diagram preview" hidden>
+          <p id="mermaid-empty">Your diagram appears here as you type.</p>
+        </div>
+      </div>
+      <p id="mermaid-help">Supports flowchart, sequence, state, class and ER diagrams. The result is made of normal shapes you can edit.</p>
+      <p id="mermaid-error" role="alert"></p>
+      <ul id="mermaid-warnings"></ul>
+      <footer>
+        <button type="button" id="mermaid-cancel">Cancel</button>
+        <span class="spacer"></span>
+        <button type="button" id="mermaid-new">Create on new board</button>
+        <button type="button" id="mermaid-add" class="primary">Add to this board</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <input id="file-input" type="file" accept=".json,.mmd,.mermaid,application/json" hidden>
   <input id="image-input" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" hidden>
   <div id="toast" role="status" hidden></div>
   <script type="module" src="src/main.js"></script>

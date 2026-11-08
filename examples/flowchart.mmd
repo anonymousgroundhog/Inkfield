@@ -1,0 +1,18 @@
+---
+title: Order flow
+---
+flowchart TD
+  A([Customer order]) --> B{In stock?}
+  B -- Yes --> C[Reserve items]
+  B -- No --> D[Notify customer]
+  subgraph Fulfilment
+    direction LR
+    C --> E[(Warehouse DB)]
+    E --> F[Ship order]
+  end
+  F --> G((Done))
+  A -.->|audit log| G
+  D --> H{{Retry later?}}
+  H ==>|yes| B
+  H --> G
+  style G fill:#b7e4c7

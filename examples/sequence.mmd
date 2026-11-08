@@ -1,0 +1,21 @@
+sequenceDiagram
+  autonumber
+  actor U as User
+  participant W as Web app
+  participant A as Auth API
+  participant D as Database
+  U->>W: Sign in
+  W->>A: POST /login
+  A->>D: Find user
+  D-->>A: User record
+  alt valid password
+    A-->>W: Session token
+    W-->>U: Dashboard
+  else invalid password
+    A--xW: 401
+    W-->>U: Show error
+  end
+  Note over W,A: Tokens expire after one hour
+  loop every 5 minutes
+    W->>W: Refresh session
+  end

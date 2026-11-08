@@ -246,6 +246,12 @@ function capMarkup(cap, tip, dir, el) {
   const nx = -dir.y, ny = dir.x, half = size * 0.48;
   const base = { x: tip.x + dir.x * size, y: tip.y + dir.y * size };
   if (cap === 'dot') return `<circle cx="${n(tip.x)}" cy="${n(tip.y)}" r="${n(size * 0.38)}" fill="${esc(el.stroke)}"/>`;
+  if (cap === 'cross') {
+    const r = size * 0.42;
+    const c = { x: tip.x + dir.x * r, y: tip.y + dir.y * r };
+    const ax = (dir.x + nx) * r * 0.7, ay = (dir.y + ny) * r * 0.7, bx = (dir.x - nx) * r * 0.7, by = (dir.y - ny) * r * 0.7;
+    return `<path d="M${n(c.x - ax)} ${n(c.y - ay)}L${n(c.x + ax)} ${n(c.y + ay)}M${n(c.x - bx)} ${n(c.y - by)}L${n(c.x + bx)} ${n(c.y + by)}" fill="none" stroke="${esc(el.stroke)}" stroke-width="${n(el.strokeWidth)}" stroke-linecap="round"/>`;
+  }
   if (cap === 'open') {
     return `<path d="M${n(base.x + nx * half)} ${n(base.y + ny * half)}L${n(tip.x)} ${n(tip.y)}L${n(base.x - nx * half)} ${n(base.y - ny * half)}" fill="none" stroke="${esc(el.stroke)}" stroke-width="${n(el.strokeWidth)}" stroke-linecap="round" stroke-linejoin="round"/>`;
   }

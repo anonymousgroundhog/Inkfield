@@ -133,6 +133,17 @@ function bezierAt(a, c1, c2, b, t) {
   };
 }
 
+// Saved waypoints stay valid while both ends move together, as when a whole diagram
+// is dragged. Once one end moves relative to the other, they no longer fit the shapes,
+// so the connector falls back to automatic routing.
+function activeVia(conn, start, end) {
+  const via = conn.via;
+  if (!via?.pts?.length) return null;
+  const dx = start.x - via.s.x, dy = start.y - via.s.y;
+  if (Math.abs(end.x - via.e.x - dx) > 0.5 || Math.abs(end.y - via.e.y - dy) > 0.5) return null;
+  return via.pts.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+}
+
 // Returns {pts, curve?}. `pts` is always a polyline usable for hit tests and labels.
 export function routeConnector(conn, byId) {
   const { start, end } = resolveEnds(conn, byId);
@@ -145,7 +156,8 @@ export function routeConnector(conn, byId) {
     for (let i = 0; i <= 28; i++) pts.push(bezierAt(start, c1, c2, end, i / 28));
     return { pts, curve: { a: start, c1, c2, b: end }, startDir: start.dir, endDir: end.dir };
   }
-  const pts = elbowPoints(start, start.dir, end, end.dir);
+  const via = activeVia(conn, start, end);
+  const pts = via ? simplify([start, ...via, end]) : elbowPoints(start, start.dir, end, end.dir);
   return { pts, startDir: unit(pts[0], pts[1]), endDir: unit(pts[pts.length - 1], pts[pts.length - 2]) };
 }
 
