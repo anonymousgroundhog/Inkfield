@@ -4,6 +4,7 @@ import { ICONS, ICON_NAMES } from './icons.js';
 import { buildSvg, downloadBlob, fitScale, rasterize, safeFilename } from './export.js';
 import { esc } from './render.js';
 import { looksLikeMermaid, mermaidToElements } from './mermaid.js';
+import { displayHost, parseHttpUrl, parsePastedUrls } from './links.js';
 
 const $ = (sel) => document.querySelector(sel);
 const svg = (paths) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${paths.map((d) => `<path d="${esc(d)}"/>`).join('')}</svg>`;
@@ -18,6 +19,7 @@ const I = {
   table: svg(['M3 5h18v14H3z', 'M3 10h18', 'M9 10v9', 'M15 10v9']),
   icons: svg(['M12 3l2.7 5.7 6.3.8-4.6 4.3 1.2 6.200L12 17l-5.6 3 1.2-6.200L3 9.500l6.3-.8z']),
   mermaid: svg(['M4 4h7v5H4z', 'M13 15h7v5h-7z', 'M7.5 9v5a3 3 0 0 0 3 3H13', 'M16 4l4 3-4 3']),
+  link: svg(['M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1', 'M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1']),
   image: svg(['M3 5h18v14H3z', 'M3 16l5-5 4 4 3-3 6 6', 'M15.5 9h.01']),
   undo: svg(['M8 5L4 9l4 4', 'M4 9h10a6 6 0 0 1 0 12h-3']),
   redo: svg(['M16 5l4 4-4 4', 'M20 9H10a6 6 0 0 0 0 12h3']),
@@ -72,6 +74,7 @@ export function createUI(editor, app) {
     { id: 'table', icon: I.table, title: 'Table: drag to draw' },
     { sep: true },
     { id: 'icons', icon: I.icons, title: 'Icons', flyout: 'icons' },
+    { id: 'link', icon: I.link, title: 'Add link with preview (L)' },
     { id: 'image', icon: I.image, title: 'Upload image' },
     { id: 'mermaid', icon: I.mermaid, title: 'Create from Mermaid code (M)' },
   ];
@@ -89,6 +92,7 @@ export function createUI(editor, app) {
     closeFlyout();
     if (id === 'image') { $('#image-input').click(); return; }
     if (id === 'mermaid') { openMermaid(); return; }
+    if (id === 'link') { promptForLink(); return; }
     editor.setTool(id);
   });
 
@@ -125,6 +129,20 @@ export function createUI(editor, app) {
   });
   rail.querySelector('[data-tool=select]').classList.add('active');
 
+  // ---- Links ----
+  function promptForLink() {
+    const text = prompt('Paste a web address');
+    if (text == null) return;
+    const urls = parsePastedUrls(text);
+    if (urls.length) editor.addLinks(urls);
+    else toast('That is not a valid web address. It should start with http:// or https://.');
+  }
+  function openLink(el) {
+    const url = parseHttpUrl(el.url);
+    if (url) window.open(url.href, '_blank', 'noopener,noreferrer');
+  }
+  editor.on('openlink', openLink);
+
   // ---- Images ----
   async function addImageFile(file, at) {
     if (!/^image\/(png|jpe?g|gif|webp|svg\+xml)$/.test(file.type)) return toast('That file type is not supported. Use PNG, JPEG, GIF, WebP or SVG.');
@@ -149,6 +167,11 @@ export function createUI(editor, app) {
   stage.addEventListener('drop', async (e) => {
     e.preventDefault();
     const at = editor.toWorld(e.clientX, e.clientY);
+    if (!e.dataTransfer.files.length) {
+      const dropped = parsePastedUrls(e.dataTransfer.getData('text/uri-list').replace(/^#.*$/gm, '') || e.dataTransfer.getData('text/plain'));
+      if (dropped.length) editor.addLinks(dropped, at);
+      return;
+    }
     for (const file of e.dataTransfer.files) {
       if (file.type.startsWith('image/')) await addImageFile(file, at);
       else if (/\.(mmd|mermaid)$/i.test(file.name)) openMermaid(await file.text());
@@ -236,7 +259,7 @@ export function createUI(editor, app) {
     const active = document.activeElement;
     if (panel.contains(active) && active.tagName === 'INPUT' && active.type !== 'color' && active.type !== 'range') return;
     const sel = editor.selectedElements();
-    const sig = JSON.stringify(sel.map((el) => [el.id, el.fill, el.stroke, el.strokeWidth, el.dash, el.fontSize, el.fontWeight, el.align, el.valign, el.textColor, el.route, el.startCap, el.endCap, el.radius, el.opacity, el.titleRow, el.headerFill, el.cells?.length, el.cells?.[0]?.length, el.groups?.length]));
+    const sig = JSON.stringify(sel.map((el) => [el.id, el.fill, el.stroke, el.strokeWidth, el.dash, el.fontSize, el.fontWeight, el.align, el.valign, el.textColor, el.route, el.startCap, el.endCap, el.radius, el.opacity, el.titleRow, el.headerFill, el.cells?.length, el.cells?.[0]?.length, el.groups?.length, el.status, el.title]));
     if (sig === signature && sel.length) return;
     signature = sig;
     panel.classList.toggle('idle', !sel.length);
@@ -247,6 +270,7 @@ export function createUI(editor, app) {
         <span><kbd>R</kbd> <kbd>C</kbd> <kbd>T</kbd> <kbd>N</kbd> <kbd>P</kbd></span><span>Shape, connector, text, note, pen</span>
         <span><kbd>Space</kbd>+drag</span><span>Pan</span>
         <span><kbd>M</kbd></span><span>Create from Mermaid code</span>
+        <span><kbd>L</kbd></span><span>Add link (or paste a URL)</span>
         <span><kbd>Ctrl</kbd>+<kbd>G</kbd></span><span>Group</span>
         <span><kbd>Ctrl</kbd>+<kbd>D</kbd></span><span>Duplicate</span>
         <span><kbd>[</kbd> <kbd>]</kbd></span><span>Send back, bring front</span>
@@ -301,6 +325,17 @@ export function createUI(editor, app) {
       html += '</div>';
     }
 
+    if (sel.length === 1 && sel[0].type === 'link') {
+      const l = sel[0];
+      const state = { loading: 'Loading preview…', failed: 'No preview available for this address. The link still works.' }[l.status];
+      html += `<div class="section"><h3>Link</h3>
+        <p class="note link-host" title="${esc(l.url)}">${esc(displayHost(l.url))}</p>
+        ${state ? `<p class="note">${esc(state)}</p>` : ''}
+        <div class="row"><label for="link-title">Title</label><input id="link-title" class="text" data-str="title" value="${esc(l.title)}"></div>
+        <div class="row"><button class="btn" data-cmd="link-open">Open link</button><button class="btn" data-cmd="link-refresh" ${l.status === 'loading' ? 'disabled' : ''}>Refresh preview</button></div>
+        <p class="note">Double-click the card to open it.</p></div>`;
+    }
+
     if (sel.length === 1 && sel[0].type === 'table') {
       const t = sel[0];
       html += `<div class="section"><h3>Table</h3>
@@ -341,6 +376,8 @@ export function createUI(editor, app) {
     const cmd = e.target.closest('[data-cmd]')?.dataset.cmd;
     if (!cmd) return;
     if (cmd === 'export') openExport();
+    else if (cmd === 'link-open') openLink(editor.selectedElements()[0]);
+    else if (cmd === 'link-refresh') editor.patchUntracked(editor.board, editor.selectedElements()[0].id, { status: 'loading' });
     else if (cmd === 'group') editor.group();
     else if (cmd === 'ungroup') editor.ungroup();
     else if (cmd === 'front') editor.reorder('front');
@@ -359,6 +396,7 @@ export function createUI(editor, app) {
     if (t.dataset.color) editor.patchSelected({ [t.dataset.color]: t.value }, { coalesceKey: `c:${t.dataset.color}` });
     if (t.dataset.range) editor.patchSelected({ [t.dataset.range]: Number(t.value) }, { coalesceKey: `r:${t.dataset.range}` });
     if (t.dataset.num && t.value !== '' && Number(t.value) >= Number(t.min)) editor.patchSelected({ [t.dataset.num]: Number(t.value) }, { coalesceKey: `n:${t.dataset.num}` });
+    if (t.dataset.str) editor.patchSelected({ [t.dataset.str]: t.value.slice(0, 300) }, { coalesceKey: `s:${t.dataset.str}` });
     if (t.dataset.check) editor.patchSelected({ [t.dataset.check]: t.checked });
   });
   panel.addEventListener('keydown', (e) => e.stopPropagation());
@@ -640,6 +678,7 @@ export function createUI(editor, app) {
     const tools = { v: 'select', h: 'hand', c: 'connector', t: 'text', n: 'sticky', p: 'pen' };
     if (tools[key]) { editor.setTool(tools[key]); closeFlyout(); return; }
     if (key === 'm') { openMermaid(); return; }
+    if (key === 'l') { promptForLink(); return; }
     if (key === 'r') { editor.setTool('shape', 'rect'); closeFlyout(); return; }
     if (key === 'o') { editor.setTool('shape', 'ellipse'); closeFlyout(); return; }
     if (key === 'd') { editor.setTool('shape', 'diamond'); closeFlyout(); return; }
@@ -684,6 +723,8 @@ export function createUI(editor, app) {
     e.preventDefault();
     if (editor.pasteSerialized(text)) return;
     if (looksLikeMermaid(text)) { openMermaid(text); return; }
+    const urls = parsePastedUrls(text);
+    if (urls.length) { editor.addLinks(urls); return; }
     const c = editor.viewCenter();
     const el = createElement('text', { text, x: c.x - 110, y: c.y - 12 });
     editor.addElements([el]);

@@ -61,7 +61,8 @@ with sync_playwright() as p:
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+    # The test forces a 502 preview on purpose, and browsers always log those.
+    page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "status of 502" not in m.text else None)
     page.goto(BASE)
     page.wait_for_function("window.inkfield?.editor?.board")
     settle(page)
@@ -399,6 +400,101 @@ with sync_playwright() as p:
     page.reload()
     page.wait_for_function("window.inkfield?.editor?.board")
     settle(page)
+
+    # Link cards: pasted URLs load previews in the background. Network replies are mocked here.
+    tiny = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=="
+    def preview(route):
+        url = route.request.url
+        if "fails.example" in url:
+            route.fulfill(status=502, json={"error": "no"})
+        elif "slow.example" in url:
+            page.wait_for_timeout(0)
+            route.fulfill(json={"kind": "page", "title": "Slow site", "description": "", "siteName": "", "image": ""})
+        elif "youtu" in url:
+            route.fulfill(json={"kind": "video", "title": "A mocked video", "description": "", "siteName": "YouTube", "image": tiny})
+        else:
+            route.fulfill(json={"kind": "page", "title": "A mocked site", "description": "", "siteName": "", "image": tiny})
+    page.route("**/api/preview*", preview)
+    page.route("https://i.ytimg.com/**", lambda r: r.abort())
+    page.click("#add-board")
+    page.wait_for_function("window.inkfield.editor.board.elements.length === 0")
+    settle(page)
+    def paste(text):
+        page.evaluate("(t) => navigator.clipboard.writeText(t)", text)
+        page.keyboard.press("Escape")
+        page.keyboard.press("Control+v")
+    def card(n=-1):
+        return els(page)[n]
+    paste("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    page.wait_for_function("window.inkfield.editor.elements.at(-1)?.status === 'ready'")
+    settle(page)
+    yt = card()
+    check("pasted YouTube URL becomes a video card", yt["type"] == "link" and yt["kind"] == "video" and yt["title"] == "A mocked video")
+    check("video card embeds its thumbnail", yt["image"].startswith("data:image/"))
+    check("thumbnail is drawn with a play badge", page.locator("#world image").count() == 1 and page.locator("#world circle").count() >= 1)
+    page.keyboard.press("Control+z")
+    settle(page)
+    check("undo removes the card", len(els(page)) == 0)
+    page.keyboard.press("Control+Shift+z")
+    settle(page)
+    check("redo restores the loaded preview, not a loading card", card()["status"] == "ready" and card()["image"].startswith("data:"))
+    paste("https://site.example/page")
+    page.wait_for_function("window.inkfield.editor.elements.at(-1)?.title === 'A mocked site'")
+    check("pasted website URL becomes a page card", card()["kind"] == "page" and card()["image"].startswith("data:"))
+    paste("https://fails.example/")
+    page.wait_for_function("window.inkfield.editor.elements.at(-1)?.status === 'failed'")
+    settle(page)
+    check("a failed preview keeps a usable card", card()["url"] == "https://fails.example/" and card()["title"] == "fails.example")
+    check("inspector explains the missing preview", "No preview available" in page.inner_text("#inspector"))
+    page.unroute("**/api/preview*")
+    page.route("**/api/preview*", lambda r: r.fulfill(json={"kind": "page", "title": "Back online", "description": "", "siteName": "", "image": ""}))
+    page.click('[data-cmd="link-refresh"]')
+    page.wait_for_function("window.inkfield.editor.elements.at(-1)?.title === 'Back online'")
+    check("refresh retries the preview", card()["status"] == "ready")
+    page.fill("#link-title", "My title")
+    settle(page)
+    check("the title can be edited", card()["title"] == "My title")
+    page.keyboard.press("Tab")
+    paste("just some words")
+    settle(page)
+    check("ordinary text still pastes as text", card()["type"] == "text")
+    # Several URLs at once don't collide, even once thumbnails make them grow
+    page.unroute("**/api/preview*")
+    page.route("**/api/preview*", lambda r: r.fulfill(json={"kind": "page", "title": "Tall", "description": "", "siteName": "", "image": tiny}))
+    before_batch = len(els(page))
+    paste("\n".join(f"https://batch{i}.example/" for i in range(5)))
+    page.wait_for_function(f"window.inkfield.editor.elements.length === {before_batch + 5} && window.inkfield.editor.elements.every(e => e.status !== 'loading')")
+    batch = els(page)[before_batch:]
+    def collide(a, b):
+        return a["x"] < b["x"] + b["w"] and b["x"] < a["x"] + a["w"] and a["y"] < b["y"] + b["h"] and b["y"] < a["y"] + a["h"]
+    check("pasting several URLs lays out cards without overlap", all(batch[i]["h"] > 200 for i in range(5)) and not any(collide(batch[i], batch[j]) for i in range(5) for j in range(i + 1, 5)), str([(b["x"], b["y"], b["h"]) for b in batch]))
+    page.keyboard.press("Delete")
+    settle(page)
+
+    # Double-click opens in a new tab, without disturbing the board
+    yt_box = page.evaluate("(el) => { const e = window.inkfield.editor; const a = e.toScreen(el); return {x: a.x + 60*e.board.view.zoom, y: a.y + 60*e.board.view.zoom}; }", els(page)[0])
+    page.keyboard.press("Escape")
+    page.context.route("https://www.youtube.com/**", lambda r: r.fulfill(body="<title>mock</title>", content_type="text/html"))
+    with ctx.expect_page() as tab:
+        page.mouse.dblclick(*stage_point(page, yt_box["x"], yt_box["y"]))
+    check("double-click opens the link", "youtube.com/watch" in tab.value.url, tab.value.url)
+    check("the new tab has no opener", tab.value.evaluate("window.opener === null"))
+    tab.value.close()
+    # Survives a reload, exports cleanly, and an interrupted load resumes
+    page.wait_for_timeout(500)
+    page.reload()
+    page.wait_for_function("window.inkfield?.editor?.board")
+    settle(page)
+    page.locator(".thumb").last.click()
+    settle(page)
+    check("cards survive a reload", els(page)[0]["image"].startswith("data:"))
+    page.keyboard.press("Control+Shift+e")
+    page.wait_for_selector("#export-dialog[open]")
+    with page.expect_download() as dl:
+        page.click("#export-download")
+    dl.value.save_as(OUT / "links.png")
+    check("cards export to PNG", png_info(OUT / "links.png")[0] > 300)
+    page.unroute("**/api/preview*")
 
     # Narrow window keeps primary controls reachable
     page.set_viewport_size({"width": 820, "height": 700})

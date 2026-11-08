@@ -5,6 +5,7 @@ import { FONT_STACK } from './model.js';
 import { connectorPath, parallelogramSkew, routeConnector } from './connectors.js';
 import { contains, distToPolyline, inflate, pointAlong, pointInPolygon, pointInRect, union } from './geometry.js';
 import { iconPaths } from './icons.js';
+import { displayHost } from './links.js';
 
 export const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const n = (v) => Math.round(v * 100) / 100;
@@ -236,6 +237,76 @@ function penPath(el) {
   return `${d}L${n(last.x)} ${n(last.y)}`;
 }
 
+// ---- Link cards ----
+
+export const LINK_FOOTER = 66;
+export const LINK_WIDTH = 360;
+const LINK_TEXT = '#1b1f23';
+const LINK_MUTED = '#5c656e';
+
+// Sizes a card for its content, keeping the width someone may have chosen.
+export function linkCardHeight(w, ratio, hasImage) {
+  if (!hasImage) return 88;
+  return Math.round(w * Math.min(0.75, Math.max(0.4, ratio || 0.5625))) + LINK_FOOTER;
+}
+
+export function loadingCardHeight(url, isVideo) {
+  return isVideo ? linkCardHeight(LINK_WIDTH, 0.5625, true) : 88;
+}
+
+function clampLines(text, width, fontSize, weight, maxLines, measure) {
+  const lines = wrapText(text.replace(/\s+/g, ' ').replace(/\*\*/g, ''), width, fontSize, weight, measure);
+  const plain = lines.slice(0, maxLines).map((l) => l.runs.map((r) => r.t).join(''));
+  if (lines.length > maxLines) {
+    let last = plain[maxLines - 1];
+    while (last && measure(`${last}…`, fontSize, weight) > width) last = last.slice(0, -1);
+    plain[maxLines - 1] = `${last.trimEnd()}…`;
+  }
+  return plain.join('\n');
+}
+
+function linkMarkup(el, ctx) {
+  const { x, y, w, h } = el;
+  const radius = Math.min(10, w / 4, h / 4);
+  const video = el.kind === 'video';
+  const loading = el.status === 'loading';
+  const showMedia = !!el.image || video;
+  const mediaH = showMedia ? Math.max(0, h - LINK_FOOTER) : 0;
+  const clip = `${ctx.idPrefix || ''}card-${el.id}`;
+  const stroke = `stroke="${esc(el.stroke)}" stroke-width="${n(el.strokeWidth)}"`;
+  let out = `<clipPath id="${esc(clip)}"><rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="${n(radius)}"/></clipPath>`;
+  out += `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="${n(radius)}" fill="${esc(el.fill)}"/>`;
+  if (mediaH > 0) {
+    out += `<g clip-path="url(#${esc(clip)})">`;
+    if (el.image && SAFE_IMAGE.test(el.image)) {
+      out += `<image x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(mediaH)}" href="${esc(el.image)}" preserveAspectRatio="xMidYMid slice"/>`;
+    } else {
+      out += `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(mediaH)}" fill="${video ? '#23272b' : '#e4e7ea'}"/>`;
+    }
+    out += '</g>';
+    if (video) {
+      const r = Math.min(26, mediaH * 0.22, w * 0.12), cx = x + w / 2, cy = y + mediaH / 2;
+      out += `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(r)}" fill="#000" fill-opacity="0.68"/>`;
+      out += `<path d="M${n(cx - r * 0.34)} ${n(cy - r * 0.48)}L${n(cx + r * 0.52)} ${n(cy)}L${n(cx - r * 0.34)} ${n(cy + r * 0.48)}Z" fill="#fff"/>`;
+    }
+  }
+  const pad = 12, textW = Math.max(20, w - pad * 2);
+  const host = displayHost(el.url);
+  const title = loading ? 'Loading preview…' : el.title || host;
+  const footTop = y + mediaH;
+  const room = h - mediaH;
+  const titleSize = 14, hostSize = 12;
+  const maxTitle = room > titleSize * 3.9 + hostSize * 1.25 ? 2 : 1;
+  const titleText = clampLines(title, textW, titleSize, 600, maxTitle, ctx.measure);
+  const titleH = titleText.split('\n').length * titleSize * LINE;
+  const hostH = hostSize * LINE;
+  const top = footTop + Math.max(4, (room - titleH - hostH - 3) / 2);
+  out += textMarkup(titleText, { x: x + pad, y: top, w: textW + 2, h: titleH }, { fontSize: titleSize, fontWeight: 600, align: 'left', valign: 'top', textColor: loading ? LINK_MUTED : LINK_TEXT }, ctx.measure);
+  out += textMarkup(clampLines(host, textW, hostSize, 400, 1, ctx.measure), { x: x + pad, y: top + titleH + 3, w: textW + 2, h: hostH }, { fontSize: hostSize, fontWeight: 400, align: 'left', valign: 'top', textColor: LINK_MUTED }, ctx.measure);
+  out += `<rect x="${n(x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" rx="${n(radius)}" fill="none" ${stroke}/>`;
+  return out;
+}
+
 // ---- Connectors ----
 
 const capSize = (el) => Math.max(10, el.strokeWidth * 4.2);
@@ -306,6 +377,7 @@ export function renderElement(el, ctx) {
     case 'text': break;
     case 'sticky': body = stickyMarkup(el); break;
     case 'icon': body = iconMarkup(el); break;
+    case 'link': body = linkMarkup(el, ctx); break;
     default: body = shapeMarkup(el);
   }
   if (showText && el.text && el.type !== 'connector') {
@@ -354,7 +426,7 @@ export function hitTest(el, p, byId, tol = 6, measure = defaultMeasure) {
   if (!pointInRect(p, inflate(box, tol))) {
     return el.type === 'icon' && !!el.text && pointInRect(p, visualBounds(el, byId, measure));
   }
-  if (['image', 'text', 'sticky', 'table', 'icon'].includes(el.type)) return true;
+  if (['image', 'text', 'sticky', 'table', 'icon', 'link'].includes(el.type)) return true;
   const filled = el.fill && el.fill !== 'none' && el.fill !== 'transparent';
   const nearEdge = !contains(box, inflate({ x: p.x, y: p.y, w: 0, h: 0 }, tol));
   if (el.type === 'ellipse') {

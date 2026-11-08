@@ -27,6 +27,7 @@ Then open <http://localhost:4173>. To use another port, run `PORT=5000 npm start
 - **Connectors:** elbow, straight, or curved lines that stay attached when shapes move. They can have arrowheads and labels. Drag from the dots around a selected item to connect it.
 - **Arrangement:** grouping (including nested groups), alignment guides while dragging, align and distribute commands, layering, undo and redo.
 - **Mermaid import:** paste Mermaid code and get a diagram made of normal, editable shapes.
+- **Link previews:** paste a URL to get a card with a thumbnail, title, and site name. YouTube links show the video's thumbnail.
 - **PNG export:** select items, then choose **Export PNG**. You can set the scale (1× to 4×), padding, and a white or transparent background, then download the file or copy it to the clipboard.
 
 ### Exporting part of a board
@@ -38,6 +39,20 @@ Then open <http://localhost:4173>. To use another port, run `PORT=5000 npm start
 ### Text formatting
 
 Wrap words in double asterisks for bold, such as `**Rule 1:** Keep an audit trail`. This works in shapes, notes, table cells, and labels.
+
+### Add links with previews
+
+Paste a web address onto the canvas, drag one in from your browser, or press `L`. You can paste several at once, one per line. Double-click a card to open the link.
+
+- **YouTube links** show the video's thumbnail, title, and channel. Watch, short, embed, live, and `youtu.be` links all work.
+- **Other websites** show the page's preview image and title, if the site publishes them. Without an image, the card shows the title and site name only.
+- **If a preview can't load**, the card still works as a link. Select it and choose **Refresh preview** to try again.
+
+Thumbnails are saved inside the board, so cards keep working offline and export to PNG.
+
+To load a preview, your computer contacts the linked site, and only when you add a link or refresh it. Opening an imported board file doesn't contact the sites it names. Previews skip addresses on private networks, and sites on ports other than 80 and 443.
+
+Website previews need the local server started by `npm start`. If you host the files on a static host, only YouTube thumbnails load, without titles.
 
 ### Create a diagram from Mermaid code
 
@@ -78,6 +93,7 @@ The conversion is an approximation of Mermaid's own output:
 | `V` / `H` | Select / pan tool |
 | `R` / `O` / `D` | Rectangle / ellipse / diamond |
 | `M` | Create from Mermaid code |
+| `L` | Add a link |
 | `C` / `T` / `N` / `P` | Connector / text / sticky note / pen |
 | `Enter` or double-click | Edit text |
 | `Ctrl+Enter` or `Esc` | Finish editing text |
@@ -113,6 +129,7 @@ Boards are plain JSON, so scripts and AI assistants can write them too. Import a
 | `table` | `x`, `y`, `w`, `h`, `cells` (array of rows), `titleRow`, `headerFill` |
 | `connector` | `from` and `to` (an element id, or `{ "id", "side" }`, or `{ "x", "y" }`), `route` (`elbow`, `straight`, `curve`), `startCap` and `endCap` (`none`, `arrow`, `open`, `dot`, `cross`), `label` |
 | `image` | `x`, `y`, `w`, `h`, `src` (base64 `data:image/...` only) |
+| `link` | `x`, `y`, `w`, `h`, `url`, `title`, `kind` (`page`, `video`), `image` (base64 `data:image/...` only). Previews don't load automatically: select the card and choose **Refresh preview**. |
 
 To preview a board or Mermaid file without a browser, render it to SVG. Text wrapping in this output is approximate:
 
