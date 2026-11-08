@@ -1,8 +1,10 @@
 // Boot, board management, persistence and multi-window sync.
+import { needsPrivateLink } from './api.js';
 import { Editor } from './editor.js';
 import { createBoard, normalizeBoard, parseImport } from './model.js';
 import { createStore } from './store.js';
 import { createUI } from './ui.js';
+import { createChat } from './chat.js';
 import { buildSvg, downloadBlob, safeFilename } from './export.js';
 import { loadPreview } from './link-preview.js';
 import { linkCardHeight } from './render.js';
@@ -241,6 +243,7 @@ editor.on('gestureend', () => {
 
 // ---- Boot ----
 const ui = createUI(editor, app);
+app.chat = createChat(editor, app, ui);
 const store = await createStore(() => syncFromStore());
 app.boards = await store.loadAll();
 if (!app.boards.length) {
@@ -257,5 +260,9 @@ ui.renderInspector();
 editor.on('boardchange', startPreviews);
 startPreviews();
 if (!store.persistent) ui.toast('Browser storage is blocked, so boards will not survive a reload. Use File, then Save board as JSON.');
+
+needsPrivateLink().then((locked) => {
+  if (locked) ui.toast('AI chat and link previews are off. To turn them on, open the private link printed in the terminal.');
+});
 
 window.inkfield = { editor, app, normalizeBoard };

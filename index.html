@@ -52,6 +52,27 @@
       </div>
     </div>
     <aside id="inspector" aria-label="Properties"></aside>
+    <section id="chat-panel" aria-label="AI chat" hidden>
+      <header>
+        <h2>AI chat</h2>
+        <span class="spacer"></span>
+        <button id="chat-new" type="button" class="btn">New chat</button>
+        <button id="chat-close" type="button" class="icon-btn" title="Close" aria-label="Close AI chat">×</button>
+      </header>
+      <div id="chat-notice" role="status" hidden></div>
+      <div id="chat-log" aria-live="polite"></div>
+      <div id="chat-composer">
+        <div id="chat-files" hidden></div>
+        <textarea id="chat-input" rows="2" placeholder="Describe a diagram…" aria-label="Message"></textarea>
+        <div class="chat-row">
+          <button id="chat-attach" type="button" class="btn" title="Attach an image, PDF or text file">Attach file</button>
+          <span class="spacer"></span>
+          <button id="chat-stop" type="button" class="btn" hidden>Stop</button>
+          <button id="chat-send" type="button" class="primary">Send</button>
+        </div>
+      </div>
+      <input id="chat-file-input" type="file" multiple hidden accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/*,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.mmd,.mermaid,.log,.sql,.py,.js,.ts,.java,.c,.cpp,.go,.rs,.rb,.php,.sh">
+    </section>
   </main>
 
   <footer id="strip" aria-label="Boards">

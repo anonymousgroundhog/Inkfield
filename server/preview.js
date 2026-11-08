@@ -290,9 +290,9 @@ export function isAllowedCaller(req) {
   return true;
 }
 
+// Only reachable through routeApi, which checks the caller and the key first.
 export async function handlePreview(req, res, requestUrl) {
   if (req.method !== 'GET') return send(res, 405, { error: 'Method not allowed.' });
-  if (!isAllowedCaller(req)) return send(res, 403, { error: 'Forbidden.' });
   if (active >= MAX_CONCURRENT) return send(res, 429, { error: 'Too many previews at once.' });
   active++;
   const signal = AbortSignal.timeout(TIMEOUT_MS * 2);
