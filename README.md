@@ -105,3 +105,7 @@ The app is plain JavaScript modules with no build step. Rendering lives in one p
 npm test                     # unit tests
 python3 tests/e2e/smoke.py   # browser tests, with npm start running (needs Python Playwright)
 ```
+
+## License
+
+[MIT](LICENSE)
