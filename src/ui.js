@@ -19,6 +19,7 @@ const I = {
   table: svg(['M3 5h18v14H3z', 'M3 10h18', 'M9 10v9', 'M15 10v9']),
   icons: svg(['M12 3l2.7 5.7 6.3.8-4.6 4.3 1.2 6.200L12 17l-5.6 3 1.2-6.200L3 9.500l6.3-.8z']),
   mermaid: svg(['M4 4h7v5H4z', 'M13 15h7v5h-7z', 'M7.5 9v5a3 3 0 0 0 3 3H13', 'M16 4l4 3-4 3']),
+  ai: svg(['M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H10l-5 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z', 'M12 8l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z']),
   link: svg(['M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1', 'M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1']),
   image: svg(['M3 5h18v14H3z', 'M3 16l5-5 4 4 3-3 6 6', 'M15.5 9h.01']),
   undo: svg(['M8 5L4 9l4 4', 'M4 9h10a6 6 0 0 1 0 12h-3']),
@@ -77,6 +78,7 @@ export function createUI(editor, app) {
     { id: 'link', icon: I.link, title: 'Add link with preview (L)' },
     { id: 'image', icon: I.image, title: 'Upload image' },
     { id: 'mermaid', icon: I.mermaid, title: 'Create from Mermaid code (M)' },
+    { id: 'ai', icon: I.ai, title: 'Chat with AI to create a diagram (I)' },
   ];
   const rail = $('#tools');
   rail.innerHTML = TOOLS.map((t) => (t.sep ? '<div class="tool-sep"></div>'
@@ -92,6 +94,7 @@ export function createUI(editor, app) {
     closeFlyout();
     if (id === 'image') { $('#image-input').click(); return; }
     if (id === 'mermaid') { openMermaid(); return; }
+    if (id === 'ai') { app.chat.toggle(); return; }
     if (id === 'link') { promptForLink(); return; }
     editor.setTool(id);
   });
@@ -125,7 +128,7 @@ export function createUI(editor, app) {
 
   editor.on('canvasdown', () => { closeFlyout(); closeMenus(); });
   editor.on('tool', () => {
-    rail.querySelectorAll('[data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === editor.tool));
+    rail.querySelectorAll('[data-tool]:not([data-tool=ai])').forEach((b) => b.classList.toggle('active', b.dataset.tool === editor.tool));
   });
   rail.querySelector('[data-tool=select]').classList.add('active');
 
@@ -269,6 +272,7 @@ export function createUI(editor, app) {
         <span><kbd>V</kbd> <kbd>H</kbd></span><span>Select, pan</span>
         <span><kbd>R</kbd> <kbd>C</kbd> <kbd>T</kbd> <kbd>N</kbd> <kbd>P</kbd></span><span>Shape, connector, text, note, pen</span>
         <span><kbd>Space</kbd>+drag</span><span>Pan</span>
+        <span><kbd>I</kbd></span><span>Chat with AI</span>
         <span><kbd>M</kbd></span><span>Create from Mermaid code</span>
         <span><kbd>L</kbd></span><span>Add link (or paste a URL)</span>
         <span><kbd>Ctrl</kbd>+<kbd>G</kbd></span><span>Group</span>
@@ -678,6 +682,7 @@ export function createUI(editor, app) {
     const tools = { v: 'select', h: 'hand', c: 'connector', t: 'text', n: 'sticky', p: 'pen' };
     if (tools[key]) { editor.setTool(tools[key]); closeFlyout(); return; }
     if (key === 'm') { openMermaid(); return; }
+    if (key === 'i') { app.chat.open(); return; }
     if (key === 'l') { promptForLink(); return; }
     if (key === 'r') { editor.setTool('shape', 'rect'); closeFlyout(); return; }
     if (key === 'o') { editor.setTool('shape', 'ellipse'); closeFlyout(); return; }

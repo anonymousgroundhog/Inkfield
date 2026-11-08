@@ -1,5 +1,6 @@
 // Browser side of link previews: asks the local server, then shrinks the thumbnail
 // so a board stays small enough to store and sync.
+import { apiFetch } from './api.js';
 import { youTubeId } from './links.js';
 
 const MAX_THUMB_WIDTH = 720;
@@ -45,7 +46,7 @@ async function directYouTube(id) {
 
 async function askServer(url) {
   try {
-    const res = await fetch(`api/preview?url=${encodeURIComponent(url)}`, { credentials: 'omit' });
+    const res = await apiFetch(`api/preview?url=${encodeURIComponent(url)}`);
     if (!res.ok || !String(res.headers.get('content-type')).includes('json')) return null;
     return await res.json();
   } catch {

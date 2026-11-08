@@ -1,12 +1,14 @@
-// Minimal static file server plus the link preview endpoint. Binds to localhost only.
+// Minimal static file server plus the link preview and AI chat endpoints. Binds to localhost only.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handlePreview } from './server/preview.js';
+import { routeApi } from './server/api.js';
+import { loadOrCreateKey } from './server/auth.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PORT = Number(process.env.PORT) || 4173;
+const KEY = loadOrCreateKey();
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -19,8 +21,8 @@ const TYPES = {
 createServer(async (req, res) => {
   try {
     const requestUrl = new URL(req.url, 'http://localhost');
-    if (requestUrl.pathname === '/api/preview') {
-      await handlePreview(req, res, requestUrl);
+    if (requestUrl.pathname.startsWith('/api/')) {
+      await routeApi(req, res, requestUrl, { key: KEY });
       return;
     }
     const pathname = decodeURIComponent(requestUrl.pathname);
@@ -33,4 +35,8 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end('Not found');
   }
-}).listen(PORT, '127.0.0.1', () => console.log(`Inkfield running at http://localhost:${PORT}`));
+}).listen(PORT, '127.0.0.1', () => {
+  console.log(`Inkfield is running. Open your private link:\n\n  http://localhost:${PORT}/#key=${KEY}\n`);
+  console.log('Anyone with this link can use AI chat through your Claude Code account, so keep it to yourself.');
+  console.log('Your browser remembers it, so afterward you can just open http://localhost:' + PORT + '.');
+});

@@ -41,6 +41,7 @@ export class Editor {
     this.lastPatch = { key: '', at: 0 };
     this.framePending = false;
     this.deferredPatches = [];
+    this.rightInset = 0;
     this.bind();
   }
 
@@ -281,6 +282,25 @@ export class Editor {
     this.addElements(moved);
     const placed = { ...box, x: box.x + dx, y: box.y + dy };
     if (!contains(this.viewRect(), placed)) this.zoomToFit(placed);
+    return moved.map((el) => el.id);
+  }
+
+  // Swaps a previously inserted diagram for a new version in the same spot, as one undo step.
+  replaceDiagram(oldIds, list) {
+    const old = new Set(oldIds.filter((id) => this.byId.has(id)));
+    if (!old.size) return this.insertDiagram(list);
+    const oldBox = union(this.elements.filter((el) => old.has(el.id)).map((el) => visualBounds(el, this.byId)));
+    const kept = detachFrom(old, this.elements, this.byId).filter((el) => !old.has(el.id));
+    const merged = new Map(list.map((el) => [el.id, el]));
+    const box = union(list.map((el) => visualBounds(el, merged)));
+    const dx = oldBox.x + oldBox.w / 2 - box.x - box.w / 2, dy = oldBox.y + oldBox.h / 2 - box.y - box.h / 2;
+    const moved = list.map((el) => translate(el, dx, dy));
+    this.setTool('select');
+    this.commit([...kept, ...moved]);
+    this.select(moved.map((el) => el.id), { expand: false });
+    const placed = { ...box, x: box.x + dx, y: box.y + dy };
+    if (!contains(this.viewRect(), placed)) this.zoomToFit(placed);
+    return moved.map((el) => el.id);
   }
 
   // Adds cards in a loading state. The app sees them on 'change' and fetches previews.
@@ -412,7 +432,8 @@ export class Editor {
 
   viewRect() {
     const r = this.stageRect(), v = this.board.view;
-    return { x: -v.x / v.zoom, y: -v.y / v.zoom, w: r.width / v.zoom, h: r.height / v.zoom };
+    // Excludes any panel covering the stage, so new items land where they can be seen.
+    return { x: -v.x / v.zoom, y: -v.y / v.zoom, w: Math.max(1, r.width - this.rightInset) / v.zoom, h: r.height / v.zoom };
   }
 
   viewCenter() {
@@ -441,7 +462,8 @@ export class Editor {
 
   zoomToFit(rect) {
     const target = rect || union(this.elements.map((el) => visualBounds(el, this.byId)));
-    const r = this.stageRect();
+    const stage = this.stageRect();
+    const r = { width: Math.max(1, stage.width - this.rightInset), height: stage.height };
     if (!target) {
       Object.assign(this.board.view, { x: r.width / 2, y: r.height / 2, zoom: 1 });
     } else {

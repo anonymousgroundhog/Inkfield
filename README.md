@@ -16,7 +16,9 @@ cd Inkfield
 npm start
 ```
 
-Then open <http://localhost:4173>. To use another port, run `PORT=5000 npm start`.
+Then open the private link printed in the terminal. It looks like `http://localhost:4173/#key=...`. Your browser remembers it, so afterward you can open <http://localhost:4173> directly. To use another port, run `PORT=5000 npm start`.
+
+Drawing works without the link, but AI chat and link previews stay off.
 
 ## What it does
 
@@ -27,6 +29,7 @@ Then open <http://localhost:4173>. To use another port, run `PORT=5000 npm start
 - **Connectors:** elbow, straight, or curved lines that stay attached when shapes move. They can have arrowheads and labels. Drag from the dots around a selected item to connect it.
 - **Arrangement:** grouping (including nested groups), alignment guides while dragging, align and distribute commands, layering, undo and redo.
 - **Mermaid import:** paste Mermaid code and get a diagram made of normal, editable shapes.
+- **AI chat:** describe a diagram or attach an image or file, and Claude draws it, using Claude Code on your computer.
 - **Link previews:** paste a URL to get a card with a thumbnail, title, and site name. YouTube links show the video's thumbnail.
 - **PNG export:** select items, then choose **Export PNG**. You can set the scale (1× to 4×), padding, and a white or transparent background, then download the file or copy it to the clipboard.
 
@@ -39,6 +42,37 @@ Then open <http://localhost:4173>. To use another port, run `PORT=5000 npm start
 ### Text formatting
 
 Wrap words in double asterisks for bold, such as `**Tip:** Save a backup`. This works in shapes, notes, table cells, and labels.
+
+### Chat with AI to create a diagram
+
+If [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) is installed and signed in on your computer, you can create diagrams by chatting. Click the chat button in the left toolbar or press `I`.
+
+1. Describe the diagram you want. To work from something you already have, click **Attach file**, or drag a file onto the panel, or paste an image.
+2. Check the preview in Claude's reply, then choose **Add to board** or **New board**.
+3. Ask for changes, such as "make the database blue". Choose **Replace last** to swap the new version in where the previous one was.
+
+You can attach images (PNG, JPEG, GIF, WebP), PDFs, and text files such as Markdown, CSV, JSON, or source code. Save Word and Excel files as PDF first. Each chat can use up to 8 attachments.
+
+Results are normal shapes and connectors, so you can edit them like anything else on the board.
+
+**What happens to your data:**
+
+- Your messages and attachments go to Anthropic through your Claude Code account, and usage counts toward that account's limits.
+- Claude only sees what you type or attach. It doesn't see your boards.
+- Claude runs with all tools, plug-ins, and settings turned off, so it can only reply with text. It can't read your files, run commands, or browse the web, even if an attached file tells it to.
+- Chat always uses the Claude Code on the computer running Inkfield. The project contains no shared account or credentials.
+- Inkfield doesn't save chats. A chat clears when you reload the page, and Claude Code doesn't save a session.
+
+Chat needs the local server started by `npm start`, so it isn't available on a static host.
+
+**Who can use your Claude Code through Inkfield:**
+
+- **Other computers can't.** The server only accepts connections from your own computer.
+- **Other websites can't.** Requests from them are refused, even while Inkfield is open.
+- **Other programs and user accounts on your computer can't,** unless they have your private key. Every request must include it, and it's stored in `~/.config/inkfield/key`, which only your account can read.
+- **Programs running under your own account still can,** because they can read that file. They could also run Claude Code directly, so Inkfield doesn't add a new risk there.
+
+Treat the private link like a password. If you think someone has seen it, delete `~/.config/inkfield/key` and restart Inkfield. That creates a new key, and you'll need to open the new link in your browser. Don't put Inkfield on a network or behind a tunnel, since anyone holding the key could use your account.
 
 ### Add links with previews
 
@@ -92,6 +126,7 @@ The conversion is an approximation of Mermaid's own output:
 | --- | --- |
 | `V` / `H` | Select / pan tool |
 | `R` / `O` / `D` | Rectangle / ellipse / diamond |
+| `I` | Open AI chat |
 | `M` | Create from Mermaid code |
 | `L` | Add a link |
 | `C` / `T` / `N` / `P` | Connector / text / sticky note / pen |
@@ -155,7 +190,7 @@ The app is plain JavaScript modules with no build step. Rendering lives in one p
 
 ```bash
 npm test                     # unit tests
-python3 tests/e2e/smoke.py   # browser tests, with npm start running (needs Python Playwright)
+python3 tests/e2e/smoke.py   # browser tests, with npm start running (needs Python Playwright; reads your key file)
 ```
 
 ## License

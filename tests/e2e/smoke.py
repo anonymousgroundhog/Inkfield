@@ -12,6 +12,8 @@ from playwright.sync_api import sync_playwright
 BASE = f"http://localhost:{os.environ.get('PORT', '4173')}"
 OUT = Path(__file__).parent / "artifacts"
 OUT.mkdir(exist_ok=True)
+KEY_FILE = Path(os.environ.get("INKFIELD_KEY_FILE") or Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "inkfield" / "key")
+KEY = KEY_FILE.read_text().strip()
 EXAMPLE = Path(__file__).parents[2] / "examples" / "weather-station.json"
 failures = []
 
@@ -63,9 +65,11 @@ with sync_playwright() as p:
     page.on("pageerror", lambda e: errors.append(str(e)))
     # The test forces a 502 preview on purpose, and browsers always log those.
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" and "status of 502" not in m.text else None)
-    page.goto(BASE)
+    page.goto(f"{BASE}/#key={KEY}")
     page.wait_for_function("window.inkfield?.editor?.board")
     settle(page)
+    check("the private link leaves the address bar immediately", "key" not in page.url and KEY not in page.url, page.url)
+    check("the key is never written into page content", KEY not in page.content())
     page.screenshot(path=OUT / "01-empty.png")
     check("starts with one empty board", page.locator(".thumb").count() == 1 and len(els(page)) == 0)
 
@@ -495,6 +499,143 @@ with sync_playwright() as p:
     dl.value.save_as(OUT / "links.png")
     check("cards export to PNG", png_info(OUT / "links.png")[0] > 300)
     page.unroute("**/api/preview*")
+
+    # AI chat, with the local CLI endpoints mocked
+    chat_requests = []
+    def ndjson(*events):
+        return "\n".join(json.dumps(e) for e in events) + "\n"
+    def ai_chat(route):
+        body = json.loads(route.request.post_data)
+        chat_requests.append(body)
+        last = body["messages"][-1]["text"]
+        if "fail" in last:
+            route.fulfill(status=200, content_type="application/x-ndjson", body=ndjson({"type": "error", "message": "Claude had a problem."}))
+        elif "broken" in last:
+            route.fulfill(status=200, content_type="application/x-ndjson", body=ndjson({"type": "text", "text": "Here.\n```inkfield\n{oops\n```"}, {"type": "done"}))
+        elif "bigger" in last:
+            code = {"name": "Second", "elements": [{"id": "a", "type": "rect", "x": 0, "y": 0, "w": 300, "h": 100, "text": "Revised"}]}
+            route.fulfill(status=200, content_type="application/x-ndjson", body=ndjson({"type": "text", "text": "Updated.\n```inkfield\n" + json.dumps(code) + "\n```"}, {"type": "done"}))
+        else:
+            route.fulfill(status=200, content_type="application/x-ndjson", body=ndjson({"type": "text", "text": "Here you go."}, {"type": "text", "text": "\n```mermaid\nflowchart TD\n  A[First] --> B[Second]\n```"}, {"type": "done"}))
+    page.route("**/api/ai/chat", ai_chat)
+    page.route("**/api/ai/status", lambda r: r.fulfill(json={"available": False, "loggedIn": False, "version": ""}))
+    page.click("#add-board")
+    page.wait_for_function("window.inkfield.editor.board.elements.length === 0")
+    settle(page)
+    page.click("[data-tool=ai]")
+    page.wait_for_selector("#chat-notice strong")
+    check("missing CLI explains how to install it", "isn't installed" in page.inner_text("#chat-notice") and page.is_disabled("#chat-input"))
+    page.unroute("**/api/ai/status")
+    page.route("**/api/ai/status", lambda r: r.fulfill(json={"available": True, "loggedIn": False, "version": "1"}))
+    page.click("#chat-notice button")
+    page.wait_for_function("document.querySelector('#chat-notice').innerText.includes('signed in')")
+    check("signed-out CLI explains how to sign in", "claude auth login" in page.inner_text("#chat-notice"))
+    page.unroute("**/api/ai/status")
+    page.route("**/api/ai/status", lambda r: r.fulfill(json={"available": True, "loggedIn": True, "version": "1"}))
+    page.click("#chat-notice button")
+    page.wait_for_function("!document.querySelector('#chat-input').disabled")
+    check("available CLI enables chat", page.is_hidden("#chat-notice"))
+    page.fill("#chat-input", "v r t")
+    check("typing in chat does not trigger hotkeys", page.evaluate("window.inkfield.editor.tool") == "select")
+    page.fill("#chat-input", "")
+    check("send is disabled with nothing to send", page.is_disabled("#chat-send"))
+    page.set_input_files("#chat-file-input", [
+        {"name": "sketch.png", "mimeType": "image/png", "buffer": (OUT / "selection.png").read_bytes()},
+        {"name": "notes.md", "mimeType": "text/markdown", "buffer": b"# Notes"},
+        {"name": "paper.pdf", "mimeType": "application/pdf", "buffer": b"%PDF-1.4 x"},
+    ])
+    page.wait_for_function("document.querySelectorAll('#chat-files .chip').length === 3")
+    page.set_input_files("#chat-file-input", {"name": "sheet.xlsx", "mimeType": "application/vnd.ms-excel", "buffer": b"PK"})
+    page.wait_for_function("document.querySelector('#toast').textContent.includes('sheet.xlsx')")
+    check("unsupported files are refused with a reason", page.locator("#chat-files .chip").count() == 3)
+    page.locator("#chat-files .chip button").nth(1).click()
+    check("attachments can be removed", page.locator("#chat-files .chip").count() == 2)
+    page.set_input_files("#chat-file-input", {"name": "notes.md", "mimeType": "text/markdown", "buffer": b"# Notes"})
+    page.wait_for_function("document.querySelectorAll('#chat-files .chip').length === 3")
+    page.fill("#chat-input", "Draw this")
+    page.keyboard.press("Enter")
+    page.wait_for_selector(".diagram-card img")
+    settle(page)
+    sent = chat_requests[-1]["messages"][0]
+    check("message carries attachments of the right kinds", sorted(a["kind"] for a in sent["attachments"]) == ["image", "pdf", "text"] and sent["text"] == "Draw this", str(sent.get("text")))
+    image_sent = next(a for a in sent["attachments"] if a["kind"] == "image")
+    check("oversized images are shrunk before sending", len(image_sent["data"]) > 100)
+    check("the welcome text goes away once chatting", page.locator(".chat-welcome").count() == 0)
+    check("reply hides the code and shows a preview", "flowchart" not in page.inner_text("#chat-log") and "Here you go." in page.inner_text("#chat-log"))
+    check("composer clears after sending", page.input_value("#chat-input") == "" and page.locator("#chat-files .chip").count() == 0)
+    check("nothing is added until asked", len(els(page)) == 0)
+    card_buttons = page.locator(".diagram-card").last
+    check("replace is hidden before anything was added", card_buttons.locator("text=Replace last").is_hidden())
+    card_buttons.locator("text=Add to board").click()
+    settle(page)
+    check("add to board inserts the diagram", any(x.get("text") == "First" for x in els(page)) and len(els(page)) == 3)
+    card_buttons.locator("text=Add to board").click()
+    settle(page)
+    clear = page.evaluate("""() => { const { editor } = window.inkfield; const left = document.querySelector('#chat-panel').getBoundingClientRect().left - editor.stageRect().left;
+      return editor.elements.filter((e) => e.type !== 'connector').every((e) => editor.toScreen({ x: e.x + e.w, y: e.y }).x <= left); }""")
+    check("diagrams land clear of the chat panel", clear)
+    ids = [x["id"] for x in els(page)]
+    check("adding twice never duplicates ids", len(ids) == 6 and len(set(ids)) == 6)
+    conn = [x for x in els(page) if x["type"] == "connector"]
+    check("each copy's connector stays bound to its own shapes", all(c["start"]["id"] in ids and c["end"]["id"] in ids for c in conn) and conn[0]["start"]["id"] != conn[1]["start"]["id"])
+    page.fill("#chat-input", "make it bigger")
+    page.keyboard.press("Enter")
+    page.wait_for_function("document.querySelectorAll('.diagram-card').length === 2")
+    settle(page)
+    follow = chat_requests[-1]["messages"]
+    check("follow-ups resend the conversation", len(follow) == 3 and follow[1]["role"] == "assistant" and "flowchart" in follow[1]["text"] and len(follow[0]["attachments"]) == 3)
+    page.locator(".diagram-card").last.locator("text=Replace last").click()
+    settle(page)
+    texts = [x.get("text") for x in els(page)]
+    check("replace swaps only the last insert", "Revised" in texts and texts.count("First") == 1 and len(els(page)) == 4, str(texts))
+    page.evaluate("window.inkfield.editor.undo()")
+    settle(page)
+    check("one undo restores the replaced diagram", [x.get("text") for x in els(page)].count("First") == 2)
+    page.fill("#chat-input", "this is broken")
+    page.keyboard.press("Enter")
+    page.wait_for_function("document.querySelector('#chat-log').innerText.includes('Ask Claude to fix it')")
+    check("an unusable diagram offers a fix", "couldn't be drawn" in page.inner_text("#chat-log"))
+    page.fill("#chat-input", "please fail")
+    page.keyboard.press("Enter")
+    page.wait_for_function("document.querySelector('#chat-log').innerText.includes('Claude had a problem.')")
+    check("errors offer a retry", page.locator("#chat-log >> text=Try again").count() == 1)
+    page.click("#chat-new")
+    check("new chat clears the conversation", page.locator(".msg").count() == 0 and "Describe a diagram" in page.inner_text("#chat-log"))
+    page.click("#chat-close")
+    check("the panel closes", page.is_hidden("#chat-panel"))
+    check("chat never appears in saved boards", "Here you go" not in page.evaluate("JSON.stringify(window.inkfield.app.boards)"))
+    page.unroute("**/api/ai/chat")
+    page.unroute("**/api/ai/status")
+
+    # Elements injected from outside the app, such as by an extension, can't shrink the workspace
+    def gap():
+        return page.evaluate("document.querySelector('#strip').getBoundingClientRect().top - document.querySelector('#stage').getBoundingClientRect().bottom")
+    check("workspace fills the space above the board strip", gap() == 0, str(gap()))
+    page.evaluate("for (const h of [0, 40]) { const d = document.createElement('div'); d.className = 'stray'; d.style.height = h + 'px'; document.querySelector('#workspace').append(d); }")
+    settle(page)
+    check("stray elements in the workspace leave no gap", gap() == 0, str(gap()))
+    page.evaluate("document.querySelectorAll('.stray').forEach((d) => d.remove())")
+
+    # A browser that never opened the private link can draw, but can't reach Claude Code
+    other = browser.new_context(viewport={"width": 1300, "height": 800})
+    guest = other.new_page()
+    guest.goto(BASE)
+    guest.wait_for_function("window.inkfield?.editor?.board")
+    guest.wait_for_function("document.querySelector('#toast').textContent.includes('private link')")
+    check("a browser without the key is told how to enable AI", True)
+    guest.click("[data-tool=ai]")
+    guest.wait_for_function("document.querySelector('#chat-notice').innerText.includes('private link')")
+    check("chat stays locked without the key", guest.is_disabled("#chat-input"))
+    status = guest.evaluate("fetch('/api/ai/status').then(r => r.status)")
+    posted = guest.evaluate("""fetch('/api/ai/chat', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({messages:[{role:'user',text:'x'}]})}).then(r => r.status)""")
+    check("the API refuses a browser without the key", status == 401 and posted == 401, f"{status} {posted}")
+    guest.goto(f"{BASE}/#key={KEY}")
+    guest.reload()
+    guest.wait_for_function("window.inkfield?.editor?.board")
+    guest.click("[data-tool=ai]")
+    guest.wait_for_function("!document.querySelector('#chat-notice').innerText.includes('private link')")
+    check("opening the private link unlocks it, and it survives a reload", guest.evaluate("fetch('/api/session', {headers:{'X-Inkfield-Key': localStorage.getItem('inkfield-key')}}).then(r => r.status)") == 200)
+    other.close()
 
     # Narrow window keeps primary controls reachable
     page.set_viewport_size({"width": 820, "height": 700})

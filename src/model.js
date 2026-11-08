@@ -176,6 +176,18 @@ export function parseImport(text) {
   return boards.map((b) => normalizeBoard(b));
 }
 
+// New ids for a generated diagram, since inserting it twice must not create duplicates.
+export function withFreshIds(elements) {
+  const ids = new Map(elements.map((el) => [el.id, uid()]));
+  const groups = new Map();
+  const group = (g) => { if (!groups.has(g)) groups.set(g, `g${uid()}`); return groups.get(g); };
+  const end = (e) => (e.id && ids.has(e.id) ? { ...e, id: ids.get(e.id) } : e);
+  return elements.map((el) => {
+    const copy = { ...el, id: ids.get(el.id), groups: (el.groups || []).map(group) };
+    return el.type === 'connector' ? { ...copy, start: end(el.start), end: end(el.end) } : copy;
+  });
+}
+
 // ---- Groups: `groups` lists a member's group ids, innermost first. ----
 
 export const outerGroup = (el) => (el.groups?.length ? el.groups[el.groups.length - 1] : null);
