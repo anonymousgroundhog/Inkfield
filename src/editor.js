@@ -7,9 +7,10 @@ import {
   clamp, contains, inflate, intersects, pointInRect, projectOntoPolyline, rectFromPoints, snapBox, union,
 } from './geometry.js';
 import {
-  cellAt, cellRect, defaultMeasure, elementBounds, hitTest, labelLayout, renderElement, textBox, textHeight, visualBounds, wrapText,
+  cellAt, cellRect, defaultMeasure, elementBounds, hitTest, labelLayout, linkCardHeight, LINK_WIDTH, loadingCardHeight, renderElement, textBox, textHeight, visualBounds, wrapText,
 } from './render.js';
 
+import { displayHost, youTubeId } from './links.js';
 import { fitTextHeight, MIN_SIZE, resizedBox, scaleElement, translate } from './editor-transforms.js';
 
 const canConnect = (el) => el.type !== 'connector' && el.type !== 'pen';
@@ -39,6 +40,7 @@ export class Editor {
     this.markup = new Map();
     this.lastPatch = { key: '', at: 0 };
     this.framePending = false;
+    this.deferredPatches = [];
     this.bind();
   }
 
@@ -59,6 +61,7 @@ export class Editor {
     this.emit('selection');
     this.emit('history');
     this.emit('view');
+    this.emit('boardchange');
   }
 
   // A newer copy of the active board arrived from another window.
@@ -278,6 +281,51 @@ export class Editor {
     this.addElements(moved);
     const placed = { ...box, x: box.x + dx, y: box.y + dy };
     if (!contains(this.viewRect(), placed)) this.zoomToFit(placed);
+  }
+
+  // Adds cards in a loading state. The app sees them on 'change' and fetches previews.
+  addLinks(urls, at) {
+    const c = at || this.viewCenter();
+    const cards = urls.map((url, i) => {
+      const video = !!youTubeId(url);
+      const h = loadingCardHeight(url, video);
+      const col = i % 3, row = Math.floor(i / 3);
+      return createElement('link', {
+        url, kind: video ? 'video' : 'page', title: displayHost(url), h,
+        // Cards grow when their thumbnail arrives, so rows leave room for the tallest one.
+        x: c.x - LINK_WIDTH / 2 + col * (LINK_WIDTH + 24),
+        y: urls.length === 1 ? c.y - h / 2 : c.y + row * (linkCardHeight(LINK_WIDTH, 1, true) + 24),
+      });
+    });
+    this.setTool('select');
+    this.addElements(cards);
+    return cards;
+  }
+
+  // Applies a finished background load. It isn't an undo step, and it also updates undo
+  // snapshots, so undoing later can't bring back a card stuck on "Loading preview…".
+  patchUntracked(board, id, patch) {
+    if (board === this.board && this.gesture) {
+      // A running drag rebuilds from its starting snapshot and would lose this change.
+      this.deferredPatches.push([board, id, patch]);
+      return;
+    }
+    const apply = (list) => (list.some((el) => el.id === id) ? list.map((el) => (el.id === id ? { ...el, ...patch } : el)) : list);
+    const h = this.histories.get(board.id);
+    if (h) {
+      h.undo = h.undo.map(apply);
+      h.redo = h.redo.map(apply);
+    }
+    if (board !== this.board) {
+      board.elements = apply(board.elements);
+      board.rev = (board.rev || 0) + 1;
+      return;
+    }
+    this.replace(apply(this.elements));
+    this.board.rev = (this.board.rev || 0) + 1;
+    this.board.updatedAt = Date.now();
+    this.emit('change');
+    this.emit('selection');
   }
 
   addImage(src, naturalW, naturalH, at) {
@@ -843,6 +891,7 @@ export class Editor {
     if (this.stage.hasPointerCapture(e.pointerId)) this.stage.releasePointerCapture(e.pointerId);
     g.up(e);
     this.requestRender();
+    this.deferredPatches.splice(0).forEach(([board, id, patch]) => this.patchUntracked(board, id, patch));
     this.emit('gestureend');
     this.emit('selection');
   }
@@ -856,7 +905,9 @@ export class Editor {
       return;
     }
     this.select([hit.id], { expand: false });
-    if (hit.type === 'table') {
+    if (hit.type === 'link') {
+      this.emit('openlink', hit);
+    } else if (hit.type === 'table') {
       const cell = cellAt(hit, p);
       if (cell) this.startEdit(hit.id, cell);
     } else if (hasText(hit.type) || hit.type === 'connector') {

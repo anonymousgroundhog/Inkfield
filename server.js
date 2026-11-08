@@ -1,8 +1,9 @@
-// Minimal static file server. Binds to localhost only; Inkfield has no backend.
+// Minimal static file server plus the link preview endpoint. Binds to localhost only.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { handlePreview } from './server/preview.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PORT = Number(process.env.PORT) || 4173;
@@ -17,7 +18,12 @@ const TYPES = {
 
 createServer(async (req, res) => {
   try {
-    const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+    const requestUrl = new URL(req.url, 'http://localhost');
+    if (requestUrl.pathname === '/api/preview') {
+      await handlePreview(req, res, requestUrl);
+      return;
+    }
+    const pathname = decodeURIComponent(requestUrl.pathname);
     const rel = normalize(pathname === '/' ? 'index.html' : `.${pathname}`);
     const file = join(ROOT, rel);
     if (!file.startsWith(ROOT.endsWith(sep) ? ROOT : ROOT + sep)) throw new Error('outside root');

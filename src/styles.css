@@ -123,6 +123,10 @@ svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-widt
 .seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .seg svg.i { width: 15px; height: 15px; }
 .num { width: 58px; height: 28px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; }
+.text { flex: 1; min-width: 80px; height: 28px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; }
+.link-host { margin-bottom: 8px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.section .note + .row, .section .row + .note { margin-top: 8px; }
+.section .note + .note { margin-top: 6px; }
 .range { flex: 1; min-width: 60px; accent-color: var(--accent); }
 .btn { height: 28px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 .btn:hover:not(:disabled) { background: var(--chrome); }

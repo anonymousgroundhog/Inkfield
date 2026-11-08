@@ -4,6 +4,8 @@ import { createBoard, normalizeBoard, parseImport } from './model.js';
 import { createStore } from './store.js';
 import { createUI } from './ui.js';
 import { buildSvg, downloadBlob, safeFilename } from './export.js';
+import { loadPreview } from './link-preview.js';
+import { linkCardHeight } from './render.js';
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const editor = new Editor(document.getElementById('stage'));
@@ -133,6 +135,37 @@ const app = {
   },
 };
 
+// ---- Link previews ----
+const previewsInFlight = new Set();
+
+async function runPreview(board, el) {
+  previewsInFlight.add(el.id);
+  try {
+    const { ratio, ...fields } = await loadPreview(el.url);
+    const patch = { ...fields };
+    if (fields.status === 'ready') {
+      patch.h = linkCardHeight(el.w, ratio, !!fields.image || fields.kind === 'video');
+      if (!fields.title) delete patch.title;
+    }
+    const current = app.find(board.id);
+    if (current && current.elements.some((x) => x.id === el.id)) {
+      editor.patchUntracked(current, el.id, patch);
+      if (current !== editor.board) { store.save(current).catch(() => {}); ui.renderStrip(); }
+    }
+  } finally {
+    previewsInFlight.delete(el.id);
+  }
+}
+
+// Loading cards are the only thing that starts a fetch, whether they came from a paste,
+// a refresh, or a reload that interrupted an earlier fetch.
+function startPreviews() {
+  const board = editor.board;
+  for (const el of board.elements) {
+    if (el.type === 'link' && el.status === 'loading' && !previewsInFlight.has(el.id)) runPreview(board, el);
+  }
+}
+
 // ---- Persistence ----
 let saveTimer = null;
 let viewTimer = null;
@@ -161,6 +194,7 @@ function scheduleSave() {
 
 let stripTimer = null;
 editor.on('change', () => {
+  startPreviews();
   scheduleSave();
   clearTimeout(stripTimer);
   stripTimer = setTimeout(() => ui.renderStrip(), 400);
@@ -220,6 +254,8 @@ const wanted = new URLSearchParams(location.search).get('board');
 editor.setBoard(app.find(wanted) || app.boards[0]);
 ui.renderStrip();
 ui.renderInspector();
+editor.on('boardchange', startPreviews);
+startPreviews();
 if (!store.persistent) ui.toast('Browser storage is blocked, so boards will not survive a reload. Use File, then Save board as JSON.');
 
 window.inkfield = { editor, app, normalizeBoard };

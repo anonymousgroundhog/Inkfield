@@ -1,3 +1,5 @@
+import { parseHttpUrl } from './links.js';
+
 // Element and board data model, including validation of untrusted imported JSON.
 // Elements are treated as immutable: every edit replaces the object, which keeps
 // undo snapshots cheap and lets the renderer diff by reference.
@@ -19,6 +21,10 @@ export const DEFAULTS = {
   sticky: { ...BOX, ...TEXT, w: 170, h: 170, fill: '#ffd966', valign: 'middle' },
   icon: { ...BOX, ...TEXT, w: 96, h: 96, icon: 'user', fill: 'none', stroke: '#111111', fontWeight: 600 },
   image: { ...BOX, w: 240, h: 180, src: '' },
+  link: {
+    ...BOX, w: 360, h: 88, url: '', title: '', description: '', siteName: '', image: '', kind: 'page', status: 'loading',
+    fill: '#ffffff', stroke: '#c9ced3', strokeWidth: 1.5,
+  },
   pen: { ...BOX, points: [], stroke: '#111111', strokeWidth: 3, dash: 'solid' },
   table: {
     ...BOX, w: 480, h: 180, cells: [['Title', '', ''], ['', '', ''], ['', '', '']], titleRow: true,
@@ -33,7 +39,7 @@ export const DEFAULTS = {
 
 export const ELEMENT_TYPES = Object.keys(DEFAULTS);
 export const SHAPE_TYPES = ['rect', 'ellipse', 'diamond', 'hexagon', 'parallelogram', 'cylinder'];
-export const hasFill = (t) => SHAPE_TYPES.includes(t) || t === 'sticky' || t === 'table' || t === 'icon';
+export const hasFill = (t) => SHAPE_TYPES.includes(t) || t === 'sticky' || t === 'table' || t === 'icon' || t === 'link';
 export const hasText = (t) => SHAPE_TYPES.includes(t) || t === 'text' || t === 'sticky' || t === 'icon';
 
 let seq = 0;
@@ -101,7 +107,7 @@ export function normalizeElements(rawList) {
     const def = DEFAULTS[raw.type];
     const el = createElement(raw.type, { id: ids[i] });
     for (const key of Object.keys(def)) {
-      if (['start', 'end', 'cells', 'points', 'groups', 'src'].includes(key)) continue;
+      if (['start', 'end', 'cells', 'points', 'groups', 'src', 'url', 'image', 'status'].includes(key)) continue;
       if (typeof raw[key] === typeof def[key] && (typeof raw[key] !== 'number' || Number.isFinite(raw[key]))) el[key] = raw[key];
     }
     if ('fontSize' in el) el.fontSize = Math.min(400, Math.max(1, el.fontSize));
@@ -130,6 +136,18 @@ export function normalizeElements(rawList) {
         .filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.y))
         .map((p) => ({ x: p.x, y: p.y }));
       if (el.points.length < 2) return;
+    }
+    if (raw.type === 'link') {
+      const url = parseHttpUrl(raw.url);
+      if (!url) return;
+      el.url = url.href;
+      el.image = typeof raw.image === 'string' && SAFE_IMAGE.test(raw.image) ? raw.image : '';
+      el.kind = raw.kind === 'video' ? 'video' : 'page';
+      el.title = el.title.slice(0, 300);
+      el.description = el.description.slice(0, 400);
+      el.siteName = el.siteName.slice(0, 100);
+      // A file never starts fetching on its own: opening one shouldn't contact sites it names.
+      el.status = raw.status === 'ready' ? 'ready' : 'failed';
     }
     if (raw.type === 'image') {
       // Remote URLs would taint the export canvas and leak requests, so only embedded data is allowed.
