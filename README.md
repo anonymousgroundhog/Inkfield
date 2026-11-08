@@ -2,7 +2,7 @@
 
 An infinite-canvas diagram editor that runs in your browser. Keep separate whiteboards in one workspace or side by side in their own windows, draw diagrams from scratch, and export any selection of items as a PNG.
 
-![Inkfield showing a weather station diagram with sensors, a database, icons, and labelled connectors](docs/screenshot.png)
+![Inkfield showing a weather station diagram with sensors, a database, icons, and labelled connectors](docs/weather-station-board.png)
 
 There is no account, backend or dependency to install. Your boards stay in your browser's storage.
 
