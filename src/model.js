@@ -73,6 +73,13 @@ function normalizeEnd(raw, idMap) {
   return end;
 }
 
+function normalizeVia(raw) {
+  const point = (p) => (p && Number.isFinite(p.x) && Number.isFinite(p.y) ? { x: p.x, y: p.y } : null);
+  if (!raw || !Array.isArray(raw.pts) || !raw.pts.length || raw.pts.length > 500) return null;
+  const pts = raw.pts.map(point), s = point(raw.s), e = point(raw.e);
+  return s && e && pts.every(Boolean) ? { pts, s, e } : null;
+}
+
 // Turns untrusted JSON into valid elements: unknown types and fields are dropped,
 // ids are made safe and unique, and connector references are remapped. Connectors
 // may use the authoring shorthand {from: "id", to: "id"} in place of start/end.
@@ -106,6 +113,8 @@ export function normalizeElements(rawList) {
       el.end = normalizeEnd(raw.end ?? raw.to, idMap);
       if (!el.start || !el.end) return;
       if (!['straight', 'elbow', 'curve'].includes(el.route)) el.route = 'elbow';
+      const via = normalizeVia(raw.via);
+      if (via) el.via = via;
     } else {
       el.w = Math.max(1, el.w); el.h = Math.max(1, el.h);
     }

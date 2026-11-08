@@ -3,6 +3,7 @@ import { createElement, hasFill, hasText, SHAPE_TYPES } from './model.js';
 import { ICONS, ICON_NAMES } from './icons.js';
 import { buildSvg, downloadBlob, fitScale, rasterize, safeFilename } from './export.js';
 import { esc } from './render.js';
+import { looksLikeMermaid, mermaidToElements } from './mermaid.js';
 
 const $ = (sel) => document.querySelector(sel);
 const svg = (paths) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${paths.map((d) => `<path d="${esc(d)}"/>`).join('')}</svg>`;
@@ -16,6 +17,7 @@ const I = {
   pen: svg(['M4 20l1-4L16 5a2 2 0 0 1 3 3L8 19z', 'M14 7l3 3']),
   table: svg(['M3 5h18v14H3z', 'M3 10h18', 'M9 10v9', 'M15 10v9']),
   icons: svg(['M12 3l2.7 5.7 6.3.8-4.6 4.3 1.2 6.200L12 17l-5.6 3 1.2-6.200L3 9.500l6.3-.8z']),
+  mermaid: svg(['M4 4h7v5H4z', 'M13 15h7v5h-7z', 'M7.5 9v5a3 3 0 0 0 3 3H13', 'M16 4l4 3-4 3']),
   image: svg(['M3 5h18v14H3z', 'M3 16l5-5 4 4 3-3 6 6', 'M15.5 9h.01']),
   undo: svg(['M8 5L4 9l4 4', 'M4 9h10a6 6 0 0 1 0 12h-3']),
   redo: svg(['M16 5l4 4-4 4', 'M20 9H10a6 6 0 0 0 0 12h3']),
@@ -71,6 +73,7 @@ export function createUI(editor, app) {
     { sep: true },
     { id: 'icons', icon: I.icons, title: 'Icons', flyout: 'icons' },
     { id: 'image', icon: I.image, title: 'Upload image' },
+    { id: 'mermaid', icon: I.mermaid, title: 'Create from Mermaid code (M)' },
   ];
   const rail = $('#tools');
   rail.innerHTML = TOOLS.map((t) => (t.sep ? '<div class="tool-sep"></div>'
@@ -85,6 +88,7 @@ export function createUI(editor, app) {
     if (id === 'icons') { showIcons(); return; }
     closeFlyout();
     if (id === 'image') { $('#image-input').click(); return; }
+    if (id === 'mermaid') { openMermaid(); return; }
     editor.setTool(id);
   });
 
@@ -147,6 +151,7 @@ export function createUI(editor, app) {
     const at = editor.toWorld(e.clientX, e.clientY);
     for (const file of e.dataTransfer.files) {
       if (file.type.startsWith('image/')) await addImageFile(file, at);
+      else if (/\.(mmd|mermaid)$/i.test(file.name)) openMermaid(await file.text());
       else if (file.name.endsWith('.json')) await app.importFile(file).catch((err) => toast(err.message));
     }
   });
@@ -194,11 +199,14 @@ export function createUI(editor, app) {
     if (action === 'new') app.addBoard();
     if (action === 'window') app.openWindow(editor.board.id);
     if (action === 'open') $('#file-input').click();
+    if (action === 'mermaid') openMermaid();
     if (action === 'save') app.saveBoardFile();
     if (action === 'backup') app.saveBackupFile();
     if (action === 'png') openExport();
   });
   $('#file-input').addEventListener('change', async (e) => {
+    const picked = e.target.files[0];
+    if (picked && /\.(mmd|mermaid)$/i.test(picked.name)) { openMermaid(await picked.text()); e.target.value = ''; return; }
     if (e.target.files[0]) await app.importFile(e.target.files[0]).catch((err) => toast(`Import failed: ${err.message}`));
     e.target.value = '';
   });
@@ -238,6 +246,7 @@ export function createUI(editor, app) {
         <span><kbd>V</kbd> <kbd>H</kbd></span><span>Select, pan</span>
         <span><kbd>R</kbd> <kbd>C</kbd> <kbd>T</kbd> <kbd>N</kbd> <kbd>P</kbd></span><span>Shape, connector, text, note, pen</span>
         <span><kbd>Space</kbd>+drag</span><span>Pan</span>
+        <span><kbd>M</kbd></span><span>Create from Mermaid code</span>
         <span><kbd>Ctrl</kbd>+<kbd>G</kbd></span><span>Group</span>
         <span><kbd>Ctrl</kbd>+<kbd>D</kbd></span><span>Duplicate</span>
         <span><kbd>[</kbd> <kbd>]</kbd></span><span>Send back, bring front</span>
@@ -283,7 +292,7 @@ export function createUI(editor, app) {
     }
 
     if (connectors.length) {
-      const caps = [['none', 'None'], ['arrow', 'Arrow'], ['open', 'Open'], ['dot', 'Dot']];
+      const caps = [['none', 'None'], ['arrow', 'Arrow'], ['open', 'Open'], ['dot', 'Dot'], ['cross', '×']];
       html += '<div class="section"><h3>Connector</h3>';
       html += `<div class="row"><label>Route</label>${seg('route', [['elbow', 'Elbow'], ['straight', 'Line'], ['curve', 'Curve']], common(connectors, 'route'))}</div>`;
       html += `<div class="row"><label>Start</label>${seg('startCap', caps, common(connectors, 'startCap'))}</div>`;
@@ -429,6 +438,80 @@ export function createUI(editor, app) {
     }
   };
 
+  // ---- Mermaid dialog ----
+  const mermaidDialog = $('#mermaid-dialog'), mermaidCode = $('#mermaid-code');
+  let mermaidTimer = null, mermaidUrl = null, mermaidResult = null;
+
+  function refreshMermaid() {
+    clearTimeout(mermaidTimer);
+    mermaidResult = null;
+    const list = $('#mermaid-warnings');
+    const img = $('#mermaid-preview');
+    list.replaceChildren();
+    $('#mermaid-error').textContent = '';
+    const code = mermaidCode.value;
+    if (code.trim()) {
+      try {
+        mermaidResult = mermaidToElements(code);
+        const { svg: preview } = buildSvg(mermaidResult.elements, null, { padding: 16, background: '#ffffff' });
+        if (mermaidUrl) URL.revokeObjectURL(mermaidUrl);
+        mermaidUrl = URL.createObjectURL(new Blob([preview], { type: 'image/svg+xml' }));
+        img.src = mermaidUrl;
+        for (const w of mermaidResult.warnings) {
+          const li = document.createElement('li');
+          li.textContent = w.line ? `Line ${w.line}: ${w.message}` : w.message;
+          list.append(li);
+        }
+      } catch (err) {
+        $('#mermaid-error').textContent = err.name === 'MermaidError' ? err.message : `Could not convert this diagram: ${err.message}`;
+      }
+    }
+    img.hidden = !mermaidResult;
+    $('#mermaid-empty').hidden = !!mermaidResult;
+    $('#mermaid-empty').textContent = code.trim() ? 'Fix the problem below to see a preview.' : 'Your diagram appears here as you type.';
+    $('#mermaid-add').disabled = !mermaidResult;
+    $('#mermaid-new').disabled = !mermaidResult;
+  }
+
+  function openMermaid(code) {
+    editor.commitEdit();
+    closeFlyout();
+    closeMenus();
+    if (code !== undefined) mermaidCode.value = code;
+    refreshMermaid();
+    mermaidDialog.showModal();
+    mermaidCode.focus();
+  }
+
+  mermaidCode.addEventListener('input', () => {
+    clearTimeout(mermaidTimer);
+    mermaidTimer = setTimeout(refreshMermaid, 180);
+  });
+  mermaidCode.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || e.shiftKey) return;
+    e.preventDefault();
+    mermaidCode.setRangeText('  ', mermaidCode.selectionStart, mermaidCode.selectionEnd, 'end');
+    mermaidCode.dispatchEvent(new Event('input'));
+  });
+  mermaidDialog.addEventListener('keydown', (e) => e.stopPropagation());
+  $('#mermaid-form').addEventListener('submit', (e) => e.preventDefault());
+  $('#mermaid-cancel').onclick = () => mermaidDialog.close();
+  $('#mermaid-add').onclick = () => {
+    refreshMermaid();
+    if (!mermaidResult) return;
+    editor.insertDiagram(mermaidResult.elements);
+    mermaidDialog.close();
+    mermaidCode.value = '';
+  };
+  $('#mermaid-new').onclick = async () => {
+    refreshMermaid();
+    if (!mermaidResult) return;
+    const { elements, title } = mermaidResult;
+    mermaidDialog.close();
+    mermaidCode.value = '';
+    await app.addBoardWith(title || 'Mermaid diagram', elements);
+  };
+
   // ---- Board strip ----
   const thumbs = $('#thumbs');
   let menuBoard = null;
@@ -533,7 +616,7 @@ export function createUI(editor, app) {
   const typing = (t) => t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 
   document.addEventListener('keydown', (e) => {
-    if (typing(e.target) || dialog.open) return;
+    if (typing(e.target) || dialog.open || mermaidDialog.open) return;
     const mod = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
     if (e.code === 'Space' && !e.repeat) { editor.spaceDown = true; editor.updateCursor(); e.preventDefault(); return; }
@@ -556,6 +639,7 @@ export function createUI(editor, app) {
     }
     const tools = { v: 'select', h: 'hand', c: 'connector', t: 'text', n: 'sticky', p: 'pen' };
     if (tools[key]) { editor.setTool(tools[key]); closeFlyout(); return; }
+    if (key === 'm') { openMermaid(); return; }
     if (key === 'r') { editor.setTool('shape', 'rect'); closeFlyout(); return; }
     if (key === 'o') { editor.setTool('shape', 'ellipse'); closeFlyout(); return; }
     if (key === 'd') { editor.setTool('shape', 'diamond'); closeFlyout(); return; }
@@ -592,17 +676,18 @@ export function createUI(editor, app) {
     editor.deleteSelected();
   });
   document.addEventListener('paste', async (e) => {
-    if (typing(e.target) || dialog.open) return;
+    if (typing(e.target) || dialog.open || mermaidDialog.open) return;
     const image = [...e.clipboardData.files].find((f) => f.type.startsWith('image/'));
     if (image) { e.preventDefault(); await addImageFile(image); return; }
     const text = e.clipboardData.getData('text/plain');
     if (!text) return;
     e.preventDefault();
     if (editor.pasteSerialized(text)) return;
+    if (looksLikeMermaid(text)) { openMermaid(text); return; }
     const c = editor.viewCenter();
     const el = createElement('text', { text, x: c.x - 110, y: c.y - 12 });
     editor.addElements([el]);
   });
 
-  return { renderStrip, renderInspector, toast, openExport };
+  return { renderStrip, renderInspector, toast, openExport, openMermaid };
 }

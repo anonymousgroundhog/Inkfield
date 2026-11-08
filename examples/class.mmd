@@ -1,0 +1,12 @@
+classDiagram
+  class Animal {
+    +String name
+    +int age
+    +eat()
+  }
+  class Duck {
+    +swim()
+  }
+  class Zoo
+  Animal <|-- Duck
+  Zoo "1" o-- "*" Animal : houses

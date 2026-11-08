@@ -267,6 +267,19 @@ export class Editor {
     this.select([size.id], { expand: false });
   }
 
+  // Places generated elements at the view centre as one undo step, zooming out if needed.
+  insertDiagram(list) {
+    const merged = new Map([...this.byId, ...list.map((el) => [el.id, el])]);
+    const box = union(list.map((el) => visualBounds(el, merged)));
+    const c = this.viewCenter();
+    const dx = c.x - box.x - box.w / 2, dy = c.y - box.y - box.h / 2;
+    const moved = list.map((el) => translate(el, dx, dy));
+    this.setTool('select');
+    this.addElements(moved);
+    const placed = { ...box, x: box.x + dx, y: box.y + dy };
+    if (!contains(this.viewRect(), placed)) this.zoomToFit(placed);
+  }
+
   addImage(src, naturalW, naturalH, at) {
     const scale = Math.min(1, 640 / naturalW, 480 / naturalH);
     const w = Math.max(8, naturalW * scale), h = Math.max(8, naturalH * scale);

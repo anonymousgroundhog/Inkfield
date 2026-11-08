@@ -45,6 +45,15 @@ const app = {
     return board;
   },
 
+  async addBoardWith(name, elements) {
+    const board = createBoard(name.slice(0, 120), elements);
+    this.boards.push(board);
+    await store.save(board);
+    this.switchBoard(board.id);
+    editor.zoomToFit();
+    return board;
+  },
+
   async duplicateBoard(id) {
     const source = this.find(id);
     if (!source) return;
