@@ -12,7 +12,7 @@ from playwright.sync_api import sync_playwright
 BASE = f"http://localhost:{os.environ.get('PORT', '4173')}"
 OUT = Path(__file__).parent / "artifacts"
 OUT.mkdir(exist_ok=True)
-EXAMPLE = Path(__file__).parents[2] / "examples" / "review-pipeline.json"
+EXAMPLE = Path(__file__).parents[2] / "examples" / "weather-station.json"
 failures = []
 
 
@@ -238,11 +238,11 @@ with sync_playwright() as p:
 
     # JSON import, icons, table, labels: visual fidelity board
     page.set_input_files("#file-input", EXAMPLE)
-    page.wait_for_function("window.inkfield.editor.board.name === 'Review pipeline'")
+    page.wait_for_function("window.inkfield.editor.board.name === 'Weather station'")
     settle(page)
     page.wait_for_timeout(600)
     page.screenshot(path=OUT / "04-example-board.png")
-    check("imports example JSON", len(els(page)) == 10)
+    check("imports example JSON", len(els(page)) == 15)
 
     # Tool coverage: table edit, sticky, pen, icon, connector style
     page.click("#add-board")
