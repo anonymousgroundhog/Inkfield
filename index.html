@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inkfield</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230f6b5c'/%3E%3Cpath d='M6 17l4-9 4 6 4-8' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand"><span class="mark"></span>Inkfield</div>
+    <div class="menu-wrap">
+      <button id="file-btn" class="bar-btn" aria-haspopup="true" aria-expanded="false">File</button>
+      <div id="file-menu" class="menu" hidden>
+        <button data-file="new">New board</button>
+        <button data-file="window">Open this board in new window</button>
+        <hr>
+        <button data-file="open">Import JSON…</button>
+        <button data-file="save">Save board as JSON</button>
+        <button data-file="backup">Back up all boards</button>
+        <hr>
+        <button data-file="png">Export PNG…</button>
+      </div>
+    </div>
+    <input id="board-name" aria-label="Board name" spellcheck="false">
+    <div class="bar-group">
+      <button id="undo" class="icon-btn" title="Undo (Ctrl+Z)" aria-label="Undo"></button>
+      <button id="redo" class="icon-btn" title="Redo (Ctrl+Shift+Z)" aria-label="Redo"></button>
+    </div>
+    <span id="save-state" role="status"></span>
+    <div class="spacer"></div>
+    <div class="bar-group zoom">
+      <button id="zoom-out" class="icon-btn" title="Zoom out (Ctrl+-)" aria-label="Zoom out"></button>
+      <button id="zoom-level" class="bar-btn" title="Reset to 100% (Ctrl+0)">100%</button>
+      <button id="zoom-in" class="icon-btn" title="Zoom in (Ctrl+=)" aria-label="Zoom in"></button>
+      <button id="zoom-fit" class="bar-btn" title="Fit everything in view (Ctrl+1)">Fit</button>
+    </div>
+    <button id="export-btn" class="primary" title="Export PNG (Ctrl+Shift+E)">Export PNG</button>
+  </header>
+
+  <main id="workspace">
+    <nav id="tools" aria-label="Tools"></nav>
+    <div id="flyout" class="flyout" hidden></div>
+    <div id="stage" tabindex="-1">
+      <svg id="canvas" aria-label="Whiteboard"><g id="world"></g></svg>
+      <svg id="overlay" aria-hidden="true"></svg>
+      <div id="empty-hint">
+        <strong>Blank board</strong>
+        <span>Pick a shape on the left and drag to draw. Double-click anywhere to type.<br>Scroll to pan, Ctrl+scroll to zoom. The canvas never ends.</span>
+      </div>
+    </div>
+    <aside id="inspector" aria-label="Properties"></aside>
+  </main>
+
+  <footer id="strip" aria-label="Boards">
+    <div id="thumbs"></div>
+    <button id="add-board" title="New board" aria-label="New board"></button>
+  </footer>
+
+  <div id="board-menu" class="menu" hidden>
+    <button data-board="rename">Rename</button>
+    <button data-board="duplicate">Duplicate</button>
+    <button data-board="window">Open in new window</button>
+    <hr>
+    <button data-board="delete" class="danger">Delete…</button>
+  </div>
+
+  <dialog id="export-dialog">
+    <form method="dialog" id="export-form">
+      <h2>Export PNG</h2>
+      <div class="export-body">
+        <div class="preview"><img id="export-preview" alt="Export preview"></div>
+        <div class="export-options">
+          <fieldset>
+            <legend>What to export</legend>
+            <label><input type="radio" name="scope" value="selection"> <span id="scope-selection">Selected items</span></label>
+            <label><input type="radio" name="scope" value="board"> Entire board</label>
+            <label id="connector-option"><input type="checkbox" name="connectors" checked> Include connectors between selected items</label>
+          </fieldset>
+          <label class="field">Scale
+            <select name="scale"><option value="1">1×</option><option value="2" selected>2×</option><option value="3">3×</option><option value="4">4×</option></select>
+          </label>
+          <label class="field">Background
+            <select name="bg"><option value="#ffffff">White</option><option value="">Transparent</option></select>
+          </label>
+          <label class="field">Padding
+            <input type="number" name="padding" value="24" min="0" max="400" step="4">
+          </label>
+          <p id="export-size"></p>
+        </div>
+      </div>
+      <p id="export-error" role="alert"></p>
+      <footer>
+        <button type="button" id="export-cancel">Cancel</button>
+        <span class="spacer"></span>
+        <button type="button" id="export-copy">Copy to clipboard</button>
+        <button type="button" id="export-download" class="primary">Download PNG</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <input id="file-input" type="file" accept=".json,application/json" hidden>
+  <input id="image-input" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" hidden>
+  <div id="toast" role="status" hidden></div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

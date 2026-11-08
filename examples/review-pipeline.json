@@ -1,0 +1,16 @@
+{
+  "name": "Review pipeline",
+  "elements": [
+    { "id": "ledger", "type": "table", "x": 200, "y": 0, "w": 540, "h": 170,
+      "cells": [["Policy Ledger", "", ""], ["**Rule 1:** Keep an audit trail", "**Rule 2:** Require two reviewers", "**Rule 3:** Never ship unreviewed code"]] },
+    { "id": "team", "type": "icon", "icon": "users", "x": 20, "y": 215, "w": 110, "h": 110, "text": "Stakeholders", "fontSize": 18 },
+    { "id": "update", "type": "rect", "x": 340, "y": 235, "w": 260, "h": 70, "text": "Update Service Commits Changes", "fontSize": 18, "fontWeight": 600 },
+    { "id": "user", "type": "icon", "icon": "user", "x": 20, "y": 425, "w": 120, "h": 120, "text": "User", "fontSize": 18 },
+    { "id": "resolver", "type": "icon", "icon": "scale", "x": 420, "y": 420, "w": 130, "h": 130, "text": "Reviewer & Resolver", "fontSize": 18 },
+    { "type": "connector", "from": { "id": "team", "side": "right" }, "to": { "id": "update", "side": "left" }, "label": "Proposals" },
+    { "type": "connector", "from": { "id": "update", "side": "top" }, "to": { "id": "ledger", "side": "bottom" }, "route": "straight", "label": "Updated rules" },
+    { "type": "connector", "from": { "id": "ledger", "side": "right" }, "to": { "id": "resolver", "side": "right" }, "label": "Active rules" },
+    { "type": "connector", "from": { "id": "user", "side": "right" }, "to": { "id": "resolver", "side": "left" }, "label": "Situation" },
+    { "type": "connector", "from": { "id": "resolver", "side": "bottom" }, "to": { "id": "user", "side": "bottom" }, "label": "Decision" }
+  ]
+}
