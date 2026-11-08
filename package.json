@@ -4,6 +4,7 @@
   "description": "Infinite-canvas diagram editor with multiple boards and PNG export of any selection.",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "start": "node server.js",
     "test": "node --test tests/*.test.js"
